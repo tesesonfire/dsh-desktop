@@ -849,7 +849,14 @@ mod tests {
     }
 
     fn finder(name: &'static str) -> impl Fn(&str) -> Option<String> {
-        move |wanted: &str| if wanted == name { Some(format!("/usr/bin/{name}")) } else { None }
+        // Windows PATH lookups query "node.exe"; the stub answers both spellings.
+        move |wanted: &str| {
+            if wanted.trim_end_matches(".exe") == name {
+                Some(format!("/usr/bin/{wanted}"))
+            } else {
+                None
+            }
+        }
     }
 
     #[test]
@@ -863,7 +870,8 @@ mod tests {
     #[test]
     fn resolves_script_bin_through_path_node() {
         let cmd = resolve_dsh_command_from(Some("dsh.cjs"), None, &finder("node")).expect("resolves");
-        assert_eq!(cmd.program, "/usr/bin/node");
+        // windows queries "node.exe" -> "/usr/bin/node.exe"; unix -> "/usr/bin/node"
+        assert!(cmd.program.ends_with("node"), "unexpected program: {}", cmd.program);
         assert_eq!(cmd.args, vec!["dsh.cjs"]);
     }
 

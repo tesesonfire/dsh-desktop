@@ -87,13 +87,29 @@ pub fn read_desktop_state_at(path: &Path) -> Result<Option<DesktopState>, Launch
 /// Atomically persist the desktop state (write tmp sibling, then rename —
 /// `std::fs::rename` replaces an existing destination on Windows too).
 pub fn write_desktop_state_at(path: &Path, state: &DesktopState) -> Result<(), LauncherError> {
+    let payload = serde_json::to_string_pretty(state)?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, serde_json::to_string_pretty(state)?)?;
-    std::fs::rename(&tmp, path)?;
-    Ok(())
+    let tmp = path.with_extension(format!("json.tmp-{}", std::process::id()));
+    std::fs::write(&tmp, payload)?;
+    // Windows: rename-over-existing can hit a transient Access Denied while
+    // Defender/indexer still holds the previous file — retry briefly.
+    let mut last_err: Option<std::io::Error> = None;
+    for attempt in 0..5u32 {
+        match std::fs::rename(&tmp, path) {
+            Ok(()) => return Ok(()),
+            Err(err) => {
+                last_err = Some(err);
+                std::thread::sleep(std::time::Duration::from_millis(40 * (attempt + 1)));
+            }
+        }
+    }
+    Err(LauncherError::Io(
+        last_err
+            .map(std::io::Error::into)
+            .unwrap_or_else(|| std::io::Error::other("rename failed")),
+    ))
 }
 
 /// The profile the shell will spawn (`--profile <name>`).
@@ -217,8 +233,13 @@ mod tests {
         };
         write_desktop_state_at(&path, &state).expect("write");
 
-        // tmp sibling must be gone after the atomic rename
-        assert!(!path.with_extension("json.tmp").exists());
+        // no tmp sibling may survive the atomic rename
+        let leftovers: Vec<_> = std::fs::read_dir(path.parent().expect("parent"))
+            .expect("read dir")
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().contains(".tmp-"))
+            .collect();
+        assert!(leftovers.is_empty(), "tmp siblings left behind: {leftovers:?}");
         let raw = std::fs::read_to_string(&path).expect("read raw");
         assert!(raw.contains("\"currentProfile\""));
         assert!(raw.contains("\"lastKnownGood\""));
