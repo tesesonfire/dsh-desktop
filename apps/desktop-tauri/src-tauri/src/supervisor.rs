@@ -6,7 +6,6 @@
 //! backoff = 2^n seconds capped at 32s, counter resets after 60s of stable
 //! running. `DSH_SUPERVISOR=0` disables the whole mechanism.
 
-use std::sync::atomic::AtomicBool;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -54,7 +53,7 @@ impl Default for BackoffPolicy {
     fn default() -> Self {
         Self::new()
     }
-}static SUPERVISOR_DISABLED: AtomicBool = AtomicBool::new(false);
+}
 static STABLE_SINCE: Mutex<Option<Instant>> = Mutex::new(None);
 
 pub fn supervisor_disabled() -> bool {
