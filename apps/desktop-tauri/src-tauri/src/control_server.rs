@@ -153,7 +153,7 @@ fn worker_loop(
     }
 }
 
-fn handle_request(mut request: Request, app: &AppHandle, state: &AppState) {
+fn handle_request(request: Request, app: &AppHandle, state: &AppState) {
     // Route (path without query) and method, copied out before the body is
     // consumed by the handlers.
     let path = request.url().split('?').next().unwrap_or("").to_string();

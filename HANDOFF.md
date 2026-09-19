@@ -7,8 +7,9 @@
 
 - **Electron 壳在本机完整跑通**：`pnpm smoke:clean-boot:electron` PASS（真窗口 → 真 mock-dsh → 官方格式 ready-line → 真 Cordis+真插件控制通道 hello → WebView 挂载 → 干净退出零残留）。
 - **Tauri 壳代码完整但未编译**（本机无 cargo/MSVC——已实测确认，非假设）；契约已用脚本机器 diff（14 命令逐字一致），CI 三平台矩阵会跑 clippy/test/build + DSH_E2E 生命周期测试。
-- 全仓 `pnpm build` 0 错误、`pnpm test` 9 组测试文件全过、`pnpm audit:contract` 4/4。
+- 全仓 `pnpm build` 0 错误、`pnpm test` 10 组测试文件全过（Electron 56 + ui 28 + 其余）、`pnpm audit:contract` 4/4（18 方法）。
 - Pin：DSH `0.1.5-rc.2`（npm）/ 上游 HEAD `0.1.6-alpha.2 @ ddefc45f`（侦察与事实标准来源）；Cordis `4.0.2`。
+- **GitHub**：https://github.com/tesesonfire/dsh-desktop（public，MIT）；CI = .github/workflows/ci.yml（node + electron-smoke + rust×3 OS）。Tauri 的首次真实编译由 CI 完成，编译反馈驱动了 12 处修复（见 git log fix(tauri)）。
 
 ## 1. 如何跑 / How to run
 

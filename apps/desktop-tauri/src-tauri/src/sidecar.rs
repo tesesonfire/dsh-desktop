@@ -604,7 +604,6 @@ impl DshSidecar {
             });
         }
         if let Some(err_stream) = stderr {
-            let shared = self.shared.clone();
             let sink = self.sink.clone();
             tokio::spawn(async move {
                 pump_stderr(sink, err_stream).await;
@@ -713,8 +712,6 @@ impl DshSidecar {
         }
         self.shared.set_stopped();
     }
-
-    #[cfg(windows)]
 
     fn emit_state(&self) {
         (self.sink)(SidecarEvent::State(self.shared.status()));
