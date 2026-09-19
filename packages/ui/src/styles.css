@@ -1,0 +1,332 @@
+/* DSH Desktop shared theme — plain CSS, no framework, dark by default. */
+
+:root {
+  color-scheme: dark;
+  --dsh-bg: #0e1014;
+  --dsh-panel: #161a22;
+  --dsh-panel-raised: #1d2230;
+  --dsh-border: #2a3040;
+  --dsh-text: #e7eaf0;
+  --dsh-text-dim: #98a2b3;
+  --dsh-accent: #4d7cfe;
+  --dsh-accent-soft: rgba(77, 124, 254, 0.18);
+  --dsh-ok: #3ecf8e;
+  --dsh-err: #ef5350;
+  --dsh-radius: 12px;
+  --dsh-font:
+    system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
+  --dsh-font-mono: ui-monospace, 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--dsh-bg);
+  color: var(--dsh-text);
+  font-family: var(--dsh-font);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- layout ---- */
+
+.dsh-root {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.dsh-card {
+  width: 100%;
+  max-width: 640px;
+  background: var(--dsh-panel);
+  border: 1px solid var(--dsh-border);
+  border-radius: var(--dsh-radius);
+  padding: 28px 28px 24px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.dsh-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: 0.2px;
+}
+
+.dsh-subtitle {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dsh-text-dim);
+}
+
+.dsh-en {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--dsh-text-dim);
+}
+
+.dsh-note {
+  margin: 14px 0 0;
+  color: var(--dsh-text-dim);
+  font-size: 13px;
+}
+
+.dsh-note--ok {
+  color: var(--dsh-ok);
+}
+
+.dsh-url {
+  margin: 6px 0 0;
+  font-family: var(--dsh-font-mono);
+  font-size: 12px;
+  color: var(--dsh-text-dim);
+  word-break: break-all;
+}
+
+/* ---- buttons ---- */
+
+.dsh-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--dsh-border);
+  background: var(--dsh-panel-raised);
+  color: var(--dsh-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.dsh-btn:hover:not(:disabled) {
+  border-color: var(--dsh-accent);
+}
+
+.dsh-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.dsh-btn--primary {
+  background: var(--dsh-accent);
+  border-color: var(--dsh-accent);
+  color: #ffffff;
+}
+
+.dsh-btn-en {
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.dsh-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+/* ---- stage indicator ---- */
+
+.dsh-stages {
+  list-style: none;
+  margin: 22px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dsh-stage {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dsh-stage__dot {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--dsh-border);
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dsh-stage__label {
+  font-size: 14px;
+  color: var(--dsh-text-dim);
+}
+
+.dsh-stage--done .dsh-stage__dot {
+  border-color: var(--dsh-ok);
+  background: var(--dsh-ok);
+}
+
+.dsh-stage--done .dsh-stage__label {
+  color: var(--dsh-text);
+}
+
+.dsh-stage--error .dsh-stage__dot {
+  border-color: var(--dsh-err);
+  background: var(--dsh-err);
+}
+
+.dsh-stage--error .dsh-stage__label {
+  color: var(--dsh-err);
+}
+
+.dsh-spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--dsh-accent-soft);
+  border-top-color: var(--dsh-accent);
+  animation: dsh-spin 0.8s linear infinite;
+}
+
+@keyframes dsh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- logs ---- */
+
+.dsh-logbox {
+  margin-top: 20px;
+}
+
+.dsh-logs {
+  margin: 6px 0 0;
+  padding: 10px 12px;
+  max-height: 180px;
+  overflow: auto;
+  background: var(--dsh-bg);
+  border: 1px solid var(--dsh-border);
+  border-radius: 8px;
+  font-family: var(--dsh-font-mono);
+  font-size: 12px;
+  color: var(--dsh-text-dim);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ---- error panel ---- */
+
+.dsh-error {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid rgba(239, 83, 80, 0.45);
+  background: rgba(239, 83, 80, 0.08);
+  border-radius: 8px;
+}
+
+.dsh-error__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dsh-err);
+}
+
+.dsh-error__message {
+  margin: 6px 0 0;
+  font-family: var(--dsh-font-mono);
+  font-size: 12px;
+  word-break: break-word;
+  color: var(--dsh-text);
+}
+
+.dsh-error__hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--dsh-text-dim);
+}
+
+/* ---- settings ---- */
+
+.dsh-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dsh-list-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--dsh-border);
+  background: var(--dsh-panel-raised);
+  color: var(--dsh-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.dsh-list-btn:hover:not(:disabled) {
+  border-color: var(--dsh-accent);
+}
+
+.dsh-list-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.dsh-list-btn--current {
+  border-color: var(--dsh-ok);
+}
+
+.dsh-list-name {
+  font-weight: 600;
+}
+
+.dsh-badge {
+  flex: none;
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(62, 207, 142, 0.15);
+  color: var(--dsh-ok);
+  border: 1px solid rgba(62, 207, 142, 0.4);
+}
+
+.dsh-list-path {
+  margin-left: auto;
+  font-family: var(--dsh-font-mono);
+  font-size: 11px;
+  color: var(--dsh-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dsh-footer {
+  margin-top: 22px;
+  padding-top: 12px;
+  border-top: 1px solid var(--dsh-border);
+  font-size: 12px;
+  color: var(--dsh-text-dim);
+}

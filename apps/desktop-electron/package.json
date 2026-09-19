@@ -1,0 +1,37 @@
+{
+  "name": "desktop-electron",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "DSH Desktop — Electron thin-host shell (main process owns the sidecar, control server and shell generation).",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs && electron .",
+    "start": "electron .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "dist": "electron-builder"
+  },
+  "dependencies": {
+    "@dsh-desktop/protocol": "workspace:*",
+    "@dsh-desktop/testkit": "workspace:*",
+    "@dsh-desktop/ui": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "electron": "44.4.3",
+    "electron-builder": "^26.0.0",
+    "electron-updater": "^6.6.0",
+    "esbuild": "^0.25.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "typescript": "5.9.3",
+    "vite": "6.3.6",
+    "vitest": "3.2.4",
+    "@types/node": "^24.5.0"
+  }
+}

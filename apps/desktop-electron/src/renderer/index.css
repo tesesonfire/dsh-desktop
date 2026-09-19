@@ -1,0 +1,14 @@
+/* App-shell base on top of @dsh-desktop/ui/styles.css (which owns the theme variables). */
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--dsh-bg, #0e1014);
+  color: var(--dsh-text, #e7eaf0);
+  font-family: var(--dsh-font, system-ui, sans-serif);
+}

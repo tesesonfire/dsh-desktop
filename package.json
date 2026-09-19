@@ -1,0 +1,35 @@
+{
+  "name": "dsh-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Unofficial desktop shell for DeepSeek Harness (DSH) — Tauri 2 and Electron frontends sharing one contract layer. Not affiliated with DeepSeek.",
+  "license": "MIT",
+  "packageManager": "pnpm@10.15.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r --if-present build",
+    "test": "pnpm -r --if-present test",
+    "audit:contract": "node scripts/audit-contract.mjs",
+    "smoke:clean-boot:tauri": "node scripts/smoke-clean-boot.mjs --framework tauri",
+    "smoke:clean-boot:electron": "node scripts/smoke-clean-boot.mjs --framework electron",
+    "check:orphans": "node scripts/check-orphan-processes.mjs",
+    "dist:tauri:windows": "pnpm --filter desktop-tauri tauri build --bundles nsis",
+    "dist:tauri:mac": "pnpm --filter desktop-tauri tauri build --bundles dmg",
+    "dist:tauri:linux": "pnpm --filter desktop-tauri tauri build --bundles appimage,deb",
+    "dist:electron:windows": "pnpm --filter desktop-electron dist --win",
+    "dist:electron:mac": "pnpm --filter desktop-electron dist --mac",
+    "dist:electron:linux": "pnpm --filter desktop-electron dist --linux"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "electron-winstaller",
+      "esbuild"
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+# dsh-desktop-shell bundle patch.
+#
+# Inserted over the composed profile tree (bundle layers -> profile layer ->
+# $DSH_HOME/cordis.patch.yml -> --patch overlays). We deliberately patch
+# nothing we do not own: the ready line `dsh web: http://127.0.0.1:<port>/?token=…`
+# printed by the web-app bundle stays intact (the desktop sidecar parses it),
+# and the `--no-open` CLI flag already suppresses the external browser, so the
+# web-runtime row is left untouched.
+#
+# A patch replaces the targeted row's whole config, so each row below restates
+# every key it owns. This file only INSERTS the desktop-shell plugin row.
+- insert:
+    - id: desktop-shell
+      name: dsh-desktop-shell

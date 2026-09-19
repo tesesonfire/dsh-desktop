@@ -1,0 +1,31 @@
+{
+  "name": "desktop-tauri",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "DSH Desktop — Tauri 2 shell frontend (React). Rust side lives in src-tauri/.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@dsh-desktop/protocol": "workspace:*",
+    "@dsh-desktop/ui": "workspace:*",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.9.6",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "typescript": "5.9.3",
+    "vite": "6.3.6",
+    "vitest": "3.2.4",
+    "@types/node": "^24.5.0"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@dsh-desktop/testkit",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "mock-dsh CLI (byte-compatible ready line), fixtures and process-residue helpers for smoke tests.",
+  "bin": {
+    "mock-dsh": "./bin/mock-dsh.mjs"
+  },
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node bin/mock-dsh.mjs --self-test"
+  },
+  "dependencies": {
+    "@dsh-desktop/protocol": "workspace:*",
+    "@deepseek-ai/cordis": "4.0.2",
+    "dsh-desktop-shell": "workspace:*"
+  }
+}

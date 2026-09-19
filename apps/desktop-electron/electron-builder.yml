@@ -1,0 +1,16 @@
+appId: org.dsh-desktop.electron
+productName: DSH Desktop (Electron)
+directories:
+  output: release
+files:
+  - dist/**
+asar: true
+win:
+  target:
+    - nsis
+mac:
+  target:
+    - dmg
+linux:
+  target:
+    - AppImage

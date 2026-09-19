@@ -1,0 +1,47 @@
+[package]
+name = "dsh-desktop-tauri"
+version = "0.1.0"
+description = "DSH Desktop — Tauri 2 shell: sidecar lifecycle, control channel, navigation fence"
+authors = ["dsh-desktop contributors"]
+license = "MIT"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "dsh_desktop_tauri"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2.11", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-window-state = "2"
+tauri-plugin-updater = "2"
+tokio = { version = "1", features = ["full"] }
+tiny_http = "0.12"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rand = "0.9"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+dirs = "6"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_System_JobObjects",
+  "Win32_System_Threading",
+] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[features]
+# Hidden product of the default tauri.conf.json; enabled by the tauri CLI for
+# release builds so frontend assets are embedded instead of served from disk.
+custom-protocol = ["tauri/custom-protocol"]
