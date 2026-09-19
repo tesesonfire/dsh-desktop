@@ -111,9 +111,10 @@ mod tests {
     use super::*;
 
     fn probe_present(names: &[&str]) -> Box<ExistsProbe> {
-        Box::new(move |path: &Path| {
-            names.iter().any(|name| path.ends_with(name))
-        })
+        // Own the names so the boxed closure is 'static (borrowing the slice
+        // would tie the box to the test frame's lifetime).
+        let owned: Vec<String> = names.iter().map(|s| s.to_string()).collect();
+        Box::new(move |path: &Path| owned.iter().any(|name| path.ends_with(name.as_str())))
     }
 
     #[test]
