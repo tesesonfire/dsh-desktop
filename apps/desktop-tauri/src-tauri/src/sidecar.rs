@@ -89,7 +89,8 @@ pub enum ShellControlEvent {
 }
 
 /// Recorded POST /v0/hello payload (plugin → shell announcement).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HelloInfo {
     pub pid: u32,
     pub web_port: u16,

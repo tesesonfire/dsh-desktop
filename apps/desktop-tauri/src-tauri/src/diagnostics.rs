@@ -42,14 +42,14 @@ pub fn recent_log_tail(logs_dir: &Path, lines: usize) -> Vec<String> {
     let newest = newest_log_file(logs_dir);
     let Some(file) = newest else { return Vec::new() };
     let Ok(content) = fs::read_to_string(file) else { return Vec::new() };
-    content
+    let mut all: Vec<String> = content
         .lines()
         .filter(|line| !line.trim().is_empty())
-        .rev()
-        .take(lines)
-        .rev()
         .map(mask_tokens)
-        .collect()
+        .collect();
+    let start = all.len().saturating_sub(lines);
+    all.drain(..start);
+    all
 }
 
 fn newest_log_file(logs_dir: &Path) -> Option<PathBuf> {

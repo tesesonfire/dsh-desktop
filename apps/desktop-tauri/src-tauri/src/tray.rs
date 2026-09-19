@@ -122,7 +122,8 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
             None::<&str>,
         )?);
     }
-    let profiles_refs: Vec<&CheckMenuItem<tauri::Wry>> = profile_items.iter().collect();
+    let profiles_refs: Vec<&dyn IsMenuItem<tauri::Wry>> =
+        profile_items.iter().map(|item| item as &dyn IsMenuItem<tauri::Wry>).collect();
     let profiles_menu = Submenu::with_items(app, "Profile", true, &profiles_refs)?;
 
     let items: Vec<&dyn IsMenuItem<tauri::Wry>> = vec![

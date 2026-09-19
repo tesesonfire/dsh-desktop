@@ -55,10 +55,10 @@ fn resolve_linux_terminal(dir: &str, path_env: &str, exists: &ExistsProbe) -> Op
             }
             let candidate = PathBuf::from(dir_entry).join(name);
             if exists(&candidate) {
-                return TerminalCommand {
+                return Some(TerminalCommand {
                     program: name.to_string(),
                     args: vec![flag.to_string(), dir.to_string()],
-                };
+                });
             }
         }
     }

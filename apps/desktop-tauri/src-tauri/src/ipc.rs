@@ -202,7 +202,7 @@ pub fn diagnostics_export(app: AppHandle, state: tauri::State<'_, AppState>) -> 
         desktop_state,
     };
     let report = diagnostics::collect(&input);
-    let dir = dirs::desktop_dir().unwrap_or_else(dirs::data_dir).unwrap_or(std::env::temp_dir());
+    let dir = dirs::desktop_dir().or_else(dirs::data_dir).unwrap_or_else(std::env::temp_dir);
     let file = diagnostics::write_report(&dir, &report)?;
     Ok(serde_json::json!({ "path": file.to_string_lossy() }))
 }
