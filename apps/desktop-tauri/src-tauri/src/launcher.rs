@@ -105,11 +105,10 @@ pub fn write_desktop_state_at(path: &Path, state: &DesktopState) -> Result<(), L
             }
         }
     }
-    Err(LauncherError::Io(
-        last_err
-            .map(std::io::Error::into)
-            .unwrap_or_else(|| std::io::Error::other("rename failed")),
-    ))
+    Err(LauncherError::Io(match last_err {
+        Some(err) => err,
+        None => std::io::Error::other("rename failed"),
+    }))
 }
 
 /// The profile the shell will spawn (`--profile <name>`).
