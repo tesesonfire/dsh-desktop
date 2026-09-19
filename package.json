@@ -11,6 +11,9 @@
   "scripts": {
     "build": "pnpm -r --if-present build",
     "test": "pnpm -r --if-present test",
+    "dev:electron": "pnpm --filter desktop-electron dev",
+    "dev:tauri": "pnpm --filter desktop-tauri dev",
+    "dev:tauri:shell": "pnpm --filter desktop-tauri tauri dev",
     "audit:contract": "node scripts/audit-contract.mjs",
     "smoke:clean-boot:tauri": "node scripts/smoke-clean-boot.mjs --framework tauri",
     "smoke:clean-boot:electron": "node scripts/smoke-clean-boot.mjs --framework electron",
