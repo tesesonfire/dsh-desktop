@@ -543,11 +543,12 @@ impl DshSidecar {
                 HostState::Stopped | HostState::Error => {}
             }
             let profile = self.shared.current_profile();
-            self.spawn_process(&profile).await.map_err(|err| {
-                self.shared.set_error(&err);
-                self.emit_state();
-                err
-            })?;
+            self.spawn_process(&profile)
+                .await
+                .inspect_err(|err| {
+                    self.shared.set_error(err);
+                    self.emit_state();
+                })?;
             self.shared.bump_generation()
         };
         // Outside the spawn lock: stop() does not wait for this wait loop —

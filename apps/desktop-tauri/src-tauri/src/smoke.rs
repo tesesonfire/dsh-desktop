@@ -129,7 +129,7 @@ fn report_path(app: &AppHandle) -> PathBuf {
     if let Some(out) = std::env::var("DSH_SMOKE_OUT").ok().map(PathBuf::from).filter(|p| !p.as_os_str().is_empty()) {
         return out;
     }
-    let fallback = || PathBuf::from(std::env::temp_dir()).join("dsh-desktop-smoke-report.json");
+    let fallback = || std::env::temp_dir().join("dsh-desktop-smoke-report.json");
     match app.path().app_data_dir() {
         Ok(dir) => dir.join("smoke-report.json"),
         Err(_) => fallback(),
