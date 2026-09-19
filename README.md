@@ -34,6 +34,7 @@ pnpm build            # 所有包（protocol → desktop-shell → ui → 两平
 pnpm test             # 全部 9 组 vitest 测试
 pnpm audit:contract   # DesktopBridge 契约审计（4 个审计点）
 pnpm smoke:clean-boot:electron   # 真窗口全链路（DSH_SMOKE=1 + mock-dsh）
+pnpm smoke:fail-path:electron    # 失败路径演练：坏 DSH_BIN → 错误状态 + 零残留
 pnpm smoke:clean-boot:tauri      # 有 Rust+MSVC 的机器上真正跑，否则优雅 SKIP
 pnpm dev:electron     # 启动 Electron 壳（无 DSH_BIN 时进入错误面板并给出指引）
 pnpm dev:tauri        # 仅前端（vite:1420）；完整壳：pnpm dev:tauri:shell（需 cargo）

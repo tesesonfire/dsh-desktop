@@ -59,6 +59,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop-tauri/src-tauri
+      - name: Placeholder frontend dist (generate_context! requires it; real assets come from tauri build)
+        working-directory: apps/desktop-tauri
+        run: mkdir -p dist && echo '<!doctype html><title>placeholder</title>' > dist/index.html
       - name: clippy
         working-directory: apps/desktop-tauri/src-tauri
         run: cargo clippy -- -D warnings
