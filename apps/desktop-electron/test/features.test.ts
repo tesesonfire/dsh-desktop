@@ -9,12 +9,16 @@ import { listProfilePlugins } from '../src/main/plugin-inventory';
 const PATH_WITH = (names: string[]): string => ['C:\\a', 'C:\\b', ...names.map((n) => `X:\\bin-${n}`)].join(';');
 
 describe('resolveTerminalCommand', () => {
-  // Stub exists probe: X:\bin-<name>\<name> "exists" when listed.
-  const probeFor = (names: string[]) => (path: string): boolean =>
-    names.some((n) => path === `X:\\bin-${n}\\${n}.exe` || path === `X:\\bin-${n}\\${n}`);
+  // Platform-agnostic stub: the resolver joins PATH entries with the host
+  // separator (backslash on Windows tests, slash on Linux CI), so match on
+  // the fixture directory marker instead of the exact string.
+  const probeFor = (names: string[]) => (path: string): boolean => {
+    const base = path.split(/[\\/]+/).pop() ?? '';
+    return names.includes(base);
+  };
 
   it('windows: prefers wt, falls back to cmd broker', () => {
-    const withWt = resolveTerminalCommand('C:\\data', 'win32', { PATH: PATH_WITH(['wt']), ComSpec: 'cmd.exe' }, probeFor(['wt']));
+    const withWt = resolveTerminalCommand('C:\\data', 'win32', { PATH: PATH_WITH(['wt']), ComSpec: 'cmd.exe' }, probeFor(['wt.exe']));
     expect(withWt.command).toBe('wt.exe');
     expect(withWt.args).toEqual(['-d', 'C:\\data']);
     const bare = resolveTerminalCommand('C:\\data', 'win32', { PATH: 'C:\\Windows', ComSpec: 'cmd.exe' }, () => false);

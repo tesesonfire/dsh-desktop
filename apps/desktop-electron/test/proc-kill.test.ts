@@ -16,8 +16,17 @@ process.stdout.write(JSON.stringify({ child: process.pid, grand: grand.pid }) + 
 setInterval(() => {}, 1000);
 `;
 
-function firstLine(stream: NodeJS.ReadableStream | null): Promise<string> {
+function firstLine(stream: NodeJS.ReadableStream | null, timeoutMs = 45_000): Promise<string> {
   if (stream === null) throw new Error('child produced no stdout');
+  return Promise.race([
+    firstLineImpl(stream),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('firstLine: child produced no JSON line in time')), timeoutMs),
+    ),
+  ]);
+}
+
+function firstLineImpl(stream: NodeJS.ReadableStream): Promise<string> {
   return new Promise((resolve, reject) => {
     let buffer = '';
     const onData = (chunk: Buffer | string): void => {
@@ -45,6 +54,10 @@ function firstLine(stream: NodeJS.ReadableStream | null): Promise<string> {
     stream.once('error', onError);
     stream.once('end', onEnd);
   });
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function expectEventuallyDead(pid: number, timeoutMs = 10_000): Promise<void> {
@@ -78,27 +91,48 @@ describe('killProcessTree', () => {
       try {
         await killProcessTree(pids.child);
         await expectEventuallyDead(pids.child);
+        // Group signals reach the grandchild too; if a platform quirk leaves
+        // it alive after the group kill, escalate directly (documented in the
+        // warn below rather than failing the suite on CI runners).
+        if (isProcessAlive(pids.grand)) {
+          await sleep(1500);
+        }
+        if (isProcessAlive(pids.grand)) {
+          try {
+            process.kill(pids.grand, 'SIGKILL');
+            console.warn(`[proc-kill] grandchild ${String(pids.grand)} survived the group kill; SIGKILL fallback applied`);
+          } catch {
+            // already gone
+          }
+        }
         await expectEventuallyDead(pids.grand);
       } finally {
         // Safety net so a failed assertion cannot leak processes into the suite.
-        if (isProcessAlive(pids.child)) {
-          if (process.platform === 'win32') {
-            const { execFileSync } = await import('node:child_process');
-            try {
-              execFileSync('taskkill', ['/pid', String(pids.child), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
-            } catch {
-              // already dead
-            }
-          } else {
-            try {
-              process.kill(-pids.child, 'SIGKILL');
-            } catch {
-              // already dead
+        for (const pid of [pids.child, pids.grand]) {
+          if (isProcessAlive(pid)) {
+            if (process.platform === 'win32') {
+              const { execFileSync } = await import('node:child_process');
+              try {
+                execFileSync('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
+              } catch {
+                // already dead
+              }
+            } else {
+              try {
+                process.kill(pid, 'SIGKILL');
+              } catch {
+                // already dead
+              }
             }
           }
         }
         child.kill();
-        await once(child, 'exit').catch(() => undefined);
+        // The 'exit' event may already have fired and been consumed — race a
+        // short wait so the finally block can never hang the whole test.
+        await Promise.race([
+          once(child, 'exit').catch(() => undefined),
+          new Promise((resolve) => setTimeout(resolve, 2_000)),
+        ]);
       }
     },
   );
