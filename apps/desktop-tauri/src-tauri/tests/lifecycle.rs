@@ -21,11 +21,11 @@ async fn sidecar_spawns_ready_and_stops_without_orphans() {
 
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let mock = manifest_dir
-        .join("../../packages/testkit/bin/mock-dsh.mjs")
+        .join("../../../packages/testkit/bin/mock-dsh.mjs")
         .canonicalize()
         .expect("packages/testkit/bin/mock-dsh.mjs must exist");
     let patch = manifest_dir
-        .join("../../packages/desktop-shell/cordis.patch.yml")
+        .join("../../../packages/desktop-shell/cordis.patch.yml")
         .canonicalize()
         .expect("packages/desktop-shell/cordis.patch.yml must exist");
 
