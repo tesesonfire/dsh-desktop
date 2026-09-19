@@ -29,6 +29,10 @@ if (framework !== 'electron' && framework !== 'tauri') {
 }
 
 const timeoutMs = Number.parseInt(args[args.indexOf('--timeout') + 1] ?? '', 10) || 120_000;
+/** `--expect error`: the run is a FAILURE-path drill — the app must reach the
+ * sidecar 'error' state (bad DSH_BIN / host exiting before ready) and still
+ * shut down with zero residue. */
+const expectError = args.includes('--expect');
 const workDir = mkdtempSync(join(tmpdir(), `dsh-smoke-${framework}-`));
 const reportPath = join(workDir, 'smoke-report.json');
 const dshBin = join(root, 'packages', 'testkit', 'bin', 'mock-dsh.mjs');
@@ -40,6 +44,7 @@ const env = {
   DSH_BIN: dshBin,
   DSH_HOME: join(workDir, 'dsh-home'),
   NODE_ENV: 'production',
+  ...(expectError ? { DSH_SMOKE_EXPECT: 'error', DSH_SUPERVISOR: '0', DSH_BIN: join(workDir, 'definitely-missing-dsh.mjs') } : {}),
 };
 
 function fail(message, extra) {
@@ -125,6 +130,16 @@ function verifyReport() {
   const report = JSON.parse(readFileSync(reportPath, 'utf8'));
   const problems = [];
   if (report.framework !== framework) problems.push(`framework mismatch: ${report.framework}`);
+  if (expectError) {
+    // Failure-path drill: the app must have observed the error state cleanly.
+    if (!Array.isArray(report.errors) || report.errors.length === 0) {
+      problems.push('expected error-state smoke, but the report has no errors');
+    }
+    if (report.helloReceived === true || report.webviewAttached === true) {
+      problems.push('failure-path run unexpectedly received hello/attach');
+    }
+    return { report, problems };
+  }
   if (report.helloReceived !== true) problems.push('control-channel hello not received');
   if (report.webviewAttached !== true) problems.push('web view never attached to the ready origin');
   if (!report.readyLine || !Number.isInteger(report.readyLine.port) || report.readyLine.port <= 0) {
@@ -132,6 +147,7 @@ function verifyReport() {
   } else if (!/\/\?token=[A-Za-z0-9_-]+$/.test(report.readyLine.url)) {
     problems.push(`ready URL lost its token: ${report.readyLine.url}`);
   }
+  if (report.settings === undefined) problems.push('smoke report missing settings (contract v1.1)');
   if (Array.isArray(report.errors) && report.errors.length > 0) problems.push(`app errors: ${report.errors.join(' | ')}`);
   return { report, problems };
 }
@@ -149,5 +165,9 @@ try {
   fail('process residue detected after exit');
 }
 
-console.log(`\n✔ smoke (${framework}) PASSED: port=${report.readyLine.port} hello=${report.helloReceived} attached=${report.webviewAttached} profile=${report.profile}`);
+if (expectError) {
+  console.log(`\n✔ smoke (${framework}, failure path) PASSED: app reached error state and exited cleanly, errors=${JSON.stringify(report.errors)}`);
+} else {
+  console.log(`\n✔ smoke (${framework}) PASSED: port=${report.readyLine.port} hello=${report.helloReceived} attached=${report.webviewAttached} profile=${report.profile}`);
+}
 cleanup(0);

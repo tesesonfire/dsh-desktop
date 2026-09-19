@@ -330,3 +330,163 @@ body {
   font-size: 12px;
   color: var(--dsh-text-dim);
 }
+
+/* ---- settings sections (v1.1) ---- */
+
+.dsh-section {
+  margin-top: 22px;
+}
+
+.dsh-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--dsh-border);
+  border-radius: 8px;
+  background: var(--dsh-panel-raised);
+  cursor: default;
+}
+
+.dsh-row-label {
+  font-size: 13px;
+}
+
+/* Toggle switch rendered directly on the checkbox (appearance:none); the
+   targets are Chromium (Electron/WebView2) and WebKit (WKWebView), both of
+   which paint ::before on appearance:none inputs. */
+.dsh-switch {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  width: 38px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--dsh-border);
+  border-radius: 999px;
+  background: var(--dsh-bg);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.dsh-switch::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--dsh-text-dim);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.dsh-switch:checked {
+  background: var(--dsh-accent);
+  border-color: var(--dsh-accent);
+}
+
+.dsh-switch:checked::before {
+  transform: translateX(16px);
+  background: #ffffff;
+}
+
+.dsh-switch:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.dsh-switch:focus-visible {
+  outline: 2px solid var(--dsh-accent);
+  outline-offset: 2px;
+}
+
+.dsh-slider-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Native range + accent-color: styled without appearance:none so the thumb
+   survives on every WebView the shells ship with. */
+.dsh-slider {
+  width: 180px;
+  margin: 0;
+  accent-color: var(--dsh-accent);
+  cursor: pointer;
+}
+
+.dsh-slider:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.dsh-slider-value {
+  min-width: 4ch;
+  font-family: var(--dsh-font-mono);
+  font-size: 12px;
+  color: var(--dsh-text-dim);
+  text-align: right;
+}
+
+.dsh-plugin-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dsh-plugin-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--dsh-border);
+  border-radius: 8px;
+  background: var(--dsh-panel-raised);
+  font-size: 13px;
+}
+
+.dsh-plugin-name {
+  font-weight: 600;
+}
+
+.dsh-badge--dim {
+  background: var(--dsh-accent-soft);
+  color: var(--dsh-accent);
+  border-color: rgba(77, 124, 254, 0.4);
+}
+
+.dsh-plugin-patch {
+  margin-left: auto;
+  font-family: var(--dsh-font-mono);
+  font-size: 11px;
+  color: var(--dsh-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dsh-error-inline {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(239, 83, 80, 0.45);
+  background: rgba(239, 83, 80, 0.08);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--dsh-err);
+  word-break: break-word;
+}
+
+.dsh-path-inline {
+  font-family: var(--dsh-font-mono);
+  font-size: 12px;
+  color: var(--dsh-text);
+  word-break: break-all;
+}

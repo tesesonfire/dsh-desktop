@@ -23,7 +23,8 @@
     "dist:tauri:linux": "pnpm --filter desktop-tauri tauri build --bundles appimage,deb",
     "dist:electron:windows": "pnpm --filter desktop-electron dist --win",
     "dist:electron:mac": "pnpm --filter desktop-electron dist --mac",
-    "dist:electron:linux": "pnpm --filter desktop-electron dist --linux"
+    "dist:electron:linux": "pnpm --filter desktop-electron dist --linux",
+    "smoke:fail-path:electron": "node scripts/smoke-clean-boot.mjs --framework electron --expect --timeout 60000"
   },
   "devDependencies": {
     "typescript": "5.9.3"

@@ -45,7 +45,7 @@ describe('parseReadyLine', () => {
   });
 
   it('desktop bridge method list is exactly the interface keys', () => {
-    // compile-time assertions live in bridge.ts; this mirrors the count
-    expect(DESKTOP_BRIDGE_METHODS).toHaveLength(14);
+    // compile-time assertions live in bridge.ts; this mirrors the count (v1.1 = 18)
+    expect(DESKTOP_BRIDGE_METHODS).toHaveLength(18);
   });
 });

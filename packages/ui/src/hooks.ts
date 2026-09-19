@@ -1,5 +1,10 @@
-import { useEffect, useState } from 'react';
-import type { DesktopBridge, HostStatus } from '@dsh-desktop/protocol';
+import { useCallback, useEffect, useState } from 'react';
+import type {
+  DesktopBridge,
+  DesktopSettings,
+  HostStatus,
+  InstalledPlugin,
+} from '@dsh-desktop/protocol';
 import { bridgeErrorMessage, subscribeLog, subscribeState } from './bridge.js';
 import type { BridgeLogEntry, Unsubscribe } from './bridge.js';
 
@@ -75,4 +80,137 @@ export function useBridgeLogs(maxLines: number = DEFAULT_LOG_LINES): string[] {
     };
   }, [cap]);
   return logs;
+}
+
+export type ShellSettingsSaveState = 'idle' | 'ok' | 'error';
+
+export interface ShellSettingsController {
+  /** Canonical settings, or null until the first settings_get resolves. */
+  settings: DesktopSettings | null;
+  loading: boolean;
+  /** True while a settings_set round-trip is in flight (controls disabled). */
+  saving: boolean;
+  /** Latest load/save failure, human-readable; null when everything is fine. */
+  error: string | null;
+  /** Outcome of the most recent settings_set ('idle' before the first one). */
+  lastSave: ShellSettingsSaveState;
+  /** Persists a partial patch and adopts the platform-returned value. */
+  update(patch: Partial<DesktopSettings>): Promise<void>;
+}
+
+/**
+ * Shell preferences via settings_get/settings_set. The platform shell owns
+ * validation + persistence + application; the hook only adopts the value
+ * returned by settings_set (never a locally guessed merge). `initialSettings`
+ * seeds the first render so SSR/embed callers can render real toggle states
+ * before any bridge round-trip.
+ */
+export function useShellSettings(
+  bridge: DesktopBridge,
+  initialSettings?: DesktopSettings,
+): ShellSettingsController {
+  const [settings, setSettings] = useState<DesktopSettings | null>(() => initialSettings ?? null);
+  const [loading, setLoading] = useState(() => initialSettings == null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [lastSave, setLastSave] = useState<ShellSettingsSaveState>('idle');
+
+  useEffect(() => {
+    let alive = true;
+    bridge
+      .settings_get()
+      .then((next) => {
+        if (alive) {
+          setSettings(next);
+          setError(null);
+        }
+      })
+      .catch((err: unknown) => {
+        if (alive) setError(bridgeErrorMessage(err));
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [bridge]);
+
+  const update = useCallback(
+    async (patch: Partial<DesktopSettings>) => {
+      setSaving(true);
+      setError(null);
+      setLastSave('idle');
+      try {
+        const next = await bridge.settings_set(patch);
+        setSettings(next);
+        setLastSave('ok');
+      } catch (err: unknown) {
+        setError(bridgeErrorMessage(err));
+        setLastSave('error');
+      } finally {
+        setSaving(false);
+      }
+    },
+    [bridge],
+  );
+
+  return { settings, loading, saving, error, lastSave, update };
+}
+
+export interface PluginListController {
+  plugins: InstalledPlugin[];
+  loading: boolean;
+  /** True while an explicit rescan is in flight (initial load does not count). */
+  rescanning: boolean;
+  error: string | null;
+  /** Re-runs plugin_list and replaces the inventory with its result. */
+  rescan(): Promise<void>;
+}
+
+/**
+ * Installed-plugin inventory via plugin_list, with an explicit rescan().
+ * `initialPlugins` seeds the first render for SSR/embed callers.
+ */
+export function usePluginList(
+  bridge: DesktopBridge,
+  initialPlugins?: InstalledPlugin[],
+): PluginListController {
+  const [plugins, setPlugins] = useState<InstalledPlugin[]>(() => initialPlugins ?? []);
+  const [loading, setLoading] = useState(() => initialPlugins == null);
+  const [rescanning, setRescanning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setError(null);
+    const list = await bridge.plugin_list();
+    setPlugins(list);
+  }, [bridge]);
+
+  useEffect(() => {
+    let alive = true;
+    load()
+      .catch((err: unknown) => {
+        if (alive) setError(bridgeErrorMessage(err));
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [load]);
+
+  const rescan = useCallback(async () => {
+    setRescanning(true);
+    try {
+      await load();
+    } catch (err: unknown) {
+      setError(bridgeErrorMessage(err));
+    } finally {
+      setRescanning(false);
+    }
+  }, [load]);
+
+  return { plugins, loading, rescanning, error, rescan };
 }

@@ -8,13 +8,18 @@
 //! `#[tauri::command]`s in ipc.rs, which mirror packages/protocol/src/bridge.ts.
 
 pub mod control_server;
+pub mod diagnostics;
 pub mod ipc;
 pub mod launcher;
 pub mod nav_policy;
+pub mod plugin_inventory;
 pub mod proc_kill;
+pub mod settings;
 pub mod settings_window;
 pub mod sidecar;
 pub mod smoke;
+pub mod supervisor;
+pub mod terminal;
 pub mod tray;
 
 use std::sync::{Arc, OnceLock};
@@ -30,6 +35,8 @@ static APP: OnceLock<AppHandle> = OnceLock::new();
 static CONTROL: OnceLock<control_server::ControlHandle> = OnceLock::new();
 /// Keeps the tracing non-blocking writer's worker alive for process lifetime.
 static LOG_GUARD: OnceLock<tracing_appender::non_blocking::WorkerGuard> = OnceLock::new();
+/// Settings snapshot loaded once at setup (close-to-tray, start-minimized, zoom).
+static SETTINGS: OnceLock<settings::DesktopSettings> = OnceLock::new();
 
 pub fn run() {
     init_tracing();
@@ -60,11 +67,16 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(state.clone())
         .on_window_event(|window, event| {
-            // Main-window close = hide to tray, like the Electron shell; the
-            // in-host plugin learns about it through the /v0/events long-poll
-            // (window-close event queued here).
+            // Main-window close behavior follows the closeToTray setting:
+            // true (default) hides to tray and queues a window-close control
+            // event; false lets the window close, which exits the app and
+            // runs the full teardown.
             if let WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == "main" {
+                    let close_to_tray = SETTINGS.get().map(|s| s.close_to_tray).unwrap_or(true);
+                    if !close_to_tray {
+                        return;
+                    }
                     api.prevent_close();
                     let _ = window.hide();
                     if let Some(state) = window.try_state::<AppState>() {
@@ -89,12 +101,20 @@ pub fn run() {
             ipc::profile_switch,
             ipc::open_data_dir,
             ipc::open_external,
-            ipc::get_app_version
+            ipc::get_app_version,
+            ipc::settings_get,
+            ipc::settings_set,
+            ipc::plugin_list,
+            ipc::diagnostics_export
         ]);
 
     let app = match builder
         .setup(move |app| {
             let _ = APP.set(app.handle().clone());
+
+            // Settings first: close/start/zoom behavior reads the snapshot.
+            let loaded_settings = settings::load_from(&settings::settings_path());
+            let _ = SETTINGS.set(loaded_settings);
 
             tray::setup(app.handle())?;
 
@@ -166,7 +186,22 @@ fn build_event_sink() -> EventSink {
         SidecarEvent::State(status) => {
             let Some(app) = APP.get() else { return };
             let _ = app.emit(EVENT_STATE, status.clone());
+            // Crash self-healing: unexpected exits restart with backoff.
+            if status.state == HostState::Error {
+                let app = app.clone();
+                let error = status.error.clone();
+                supervisor::handle_state(false, error.as_deref(), move || {
+                    let app = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let state = app.state::<AppState>();
+                        if let Err(err) = state.sidecar.restart().await {
+                            tracing::error!("supervisor restart failed: {err}");
+                        }
+                    });
+                });
+            }
             if status.state == HostState::Running {
+                supervisor::handle_state(true, None, || {});
                 if let Some(url) = status.url.clone() {
                     let app = app.clone();
                     // Window operations must run on the main thread.
@@ -207,6 +242,15 @@ fn attach_main_window(app: &AppHandle, url: &str) {
     let _ = window.show();
     let _ = window.unminimize();
     let _ = window.set_focus();
+    // startMinimized setting keeps the window in the tray on the ready line.
+    if SETTINGS.get().is_some_and(|s| s.start_minimized) {
+        let _ = window.hide();
+    }
+    // Zoom from settings applies to the host page for this webview.
+    if let Some(s) = SETTINGS.get() {
+        // TODO(verify-with-cargo): same set_zoom note as ipc::settings_set.
+        let _ = window.set_zoom(s.zoom_factor);
+    }
     if let Some(state) = app.try_state::<AppState>() {
         state.shared.set_webview_attached();
     }

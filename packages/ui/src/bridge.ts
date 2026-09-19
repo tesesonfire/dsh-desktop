@@ -6,7 +6,7 @@
  *     flat `{ invoke(method, ...args), onState(cb), onLog(cb) }` object; method
  *     names passed to `invoke` are exactly the DESKTOP_BRIDGE_METHODS names.
  *  2. `window.__TAURI__` — Tauri 2 with `app.withGlobalTauri = true`. Commands
- *     are invoked via `__TAURI__.core.invoke(cmd, args)`; all 14 commands take
+ *     are invoked via `__TAURI__.core.invoke(cmd, args)`; all 18 commands take
  *     either no argument or a single named-object argument.
  *  3. Otherwise `getDesktopBridge()` throws.
  */
@@ -14,8 +14,10 @@ import { BRIDGE_EVENTS } from '@dsh-desktop/protocol';
 import type {
   BridgeEvents,
   DesktopBridge,
+  DesktopSettings,
   HostEndpoint,
   HostStatus,
+  InstalledPlugin,
   Profile,
 } from '@dsh-desktop/protocol';
 
@@ -121,6 +123,12 @@ function createElectronBridge(preload: ElectronPreloadApi): DesktopBridge {
     open_data_dir: () => call<void>('open_data_dir'),
     open_external: (url) => call<void>('open_external', url),
     get_app_version: () => call<string>('get_app_version'),
+    // v1.1: the preload allow-list is built from DESKTOP_BRIDGE_METHODS, so
+    // these pass through with no preload changes.
+    settings_get: () => call<DesktopSettings>('settings_get'),
+    settings_set: (patch) => call<DesktopSettings>('settings_set', patch),
+    plugin_list: () => call<InstalledPlugin[]>('plugin_list'),
+    diagnostics_export: () => call<{ path: string }>('diagnostics_export'),
   };
 }
 
@@ -128,8 +136,9 @@ function createTauriBridge(tauri: TauriGlobalLike): DesktopBridge {
   const invoke = <T,>(cmd: string, args?: Record<string, unknown>): Promise<T> =>
     tauri.core.invoke(cmd, args) as Promise<T>;
   // Tauri command args are positional object args: profile_switch(name) is
-  // invoked as { name }, open_external(url) as { url }; everything else is
-  // zero-arg (see apps/desktop-tauri/src-tauri/src/ipc.rs).
+  // invoked as { name }, open_external(url) as { url }, settings_set(patch)
+  // as { patch } (parameter name must match the Rust command signature);
+  // everything else is zero-arg (see apps/desktop-tauri/src-tauri/src/ipc.rs).
   return {
     host_start: () => invoke<HostEndpoint>('host_start'),
     host_stop: () => invoke<void>('host_stop'),
@@ -145,6 +154,10 @@ function createTauriBridge(tauri: TauriGlobalLike): DesktopBridge {
     open_data_dir: () => invoke<void>('open_data_dir'),
     open_external: (url) => invoke<void>('open_external', { url }),
     get_app_version: () => invoke<string>('get_app_version'),
+    settings_get: () => invoke<DesktopSettings>('settings_get'),
+    settings_set: (patch) => invoke<DesktopSettings>('settings_set', { patch }),
+    plugin_list: () => invoke<InstalledPlugin[]>('plugin_list'),
+    diagnostics_export: () => invoke<{ path: string }>('diagnostics_export'),
   };
 }
 

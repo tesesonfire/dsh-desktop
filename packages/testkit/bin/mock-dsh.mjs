@@ -62,6 +62,13 @@ if (opts.help) {
   process.stdout.write('mock-dsh: byte-compatible stand-in for `dsh web`. See packages/testkit/bin/mock-dsh.mjs header.\n');
   process.exit(0);
 }
+// Failure modes for fail-path smoke tests (must precede the ready line logic):
+//   MOCK_DSH_EXIT_BEFORE_READY=1 → exit 3 without ever printing the ready line
+//   MOCK_DSH_READY_THEN_CRASH_MS=<ms> → print the ready line, then exit 5 later
+if (process.env['MOCK_DSH_EXIT_BEFORE_READY'] === '1') {
+  process.stderr.write('mock-dsh: simulated fatal error before readiness\n');
+  process.exit(3);
+}
 if (opts.dumpConfig) {
   process.stdout.write(`${JSON.stringify({ profile, webserver: { host: '127.0.0.1', port: portNum }, patches: opts.patch }, null, 2)}\n`);
   process.exit(0);
@@ -105,6 +112,10 @@ server.listen(portNum, '127.0.0.1', () => {
   process.stdout.write(`dsh web: http://127.0.0.1:${bound}/?token=${token}\n`);
   if (!opts.noOpen) {
     process.stdout.write('dsh web: opening the default browser; pass --no-open to disable\n');
+  }
+  const crashAfter = Number.parseInt(process.env['MOCK_DSH_READY_THEN_CRASH_MS'] ?? '', 10);
+  if (Number.isInteger(crashAfter) && crashAfter >= 0) {
+    setTimeout(() => process.exit(5), crashAfter).unref();
   }
   if (process.env['MOCK_DSH_SELF_TEST'] === '1') {
     setTimeout(() => process.exit(0), 150);

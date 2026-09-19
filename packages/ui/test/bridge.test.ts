@@ -26,6 +26,23 @@ describe('getDesktopBridge — Electron preload (window.dshDesktop)', () => {
     await bridge.open_external('https://example.com');
     expect(invoke).toHaveBeenCalledWith('open_external', 'https://example.com');
   });
+
+  it('passes the v1.1 methods through positionally (patch as 2nd arg)', async () => {
+    const invoke = vi.fn(async () => ({}));
+    vi.stubGlobal('window', {
+      dshDesktop: { invoke, onState: () => () => undefined, onLog: () => () => undefined },
+    });
+
+    const bridge = getDesktopBridge();
+    await bridge.settings_get();
+    expect(invoke).toHaveBeenLastCalledWith('settings_get');
+    await bridge.settings_set({ closeToTray: false });
+    expect(invoke).toHaveBeenLastCalledWith('settings_set', { closeToTray: false });
+    await bridge.plugin_list();
+    expect(invoke).toHaveBeenLastCalledWith('plugin_list');
+    await bridge.diagnostics_export();
+    expect(invoke).toHaveBeenLastCalledWith('diagnostics_export');
+  });
 });
 
 describe('getDesktopBridge — Tauri (window.__TAURI__)', () => {
@@ -36,6 +53,9 @@ describe('getDesktopBridge — Tauri (window.__TAURI__)', () => {
     });
 
     const bridge = getDesktopBridge();
+    for (const method of DESKTOP_BRIDGE_METHODS) {
+      expect(typeof bridge[method]).toBe('function');
+    }
     await bridge.host_start();
     expect(invoke).toHaveBeenCalledWith('host_start', undefined);
     await bridge.profile_list();
@@ -44,6 +64,35 @@ describe('getDesktopBridge — Tauri (window.__TAURI__)', () => {
     expect(invoke).toHaveBeenCalledWith('profile_switch', { name: 'dsh-desktop-tauri' });
     await bridge.open_external('https://example.com');
     expect(invoke).toHaveBeenCalledWith('open_external', { url: 'https://example.com' });
+  });
+
+  it('passes the v1.1 commands with canonical arg shapes (settings_set uses {patch})', async () => {
+    const settings = { closeToTray: true, startMinimized: false, zoomFactor: 1.25 };
+    const plugins = [{ name: 'dsh-web-app', version: '0.1.0' }];
+    const invoke = vi.fn(async (cmd: string) => {
+      if (cmd === 'settings_get' || cmd === 'settings_set') return settings;
+      if (cmd === 'plugin_list') return plugins;
+      if (cmd === 'diagnostics_export') return { path: '/tmp/dsh-diagnostics.zip' };
+      return {};
+    });
+    vi.stubGlobal('window', {
+      __TAURI__: { core: { invoke }, event: { listen: vi.fn(async () => () => undefined) } },
+    });
+
+    const bridge = getDesktopBridge();
+    await expect(bridge.settings_get()).resolves.toBe(settings);
+    expect(invoke).toHaveBeenLastCalledWith('settings_get', undefined);
+
+    // The patch must ride in a named `patch` arg to match the Rust command
+    // signature — a bare object or a renamed key would break the invocation.
+    await bridge.settings_set({ zoomFactor: 1.5 });
+    expect(invoke).toHaveBeenLastCalledWith('settings_set', { patch: { zoomFactor: 1.5 } });
+
+    await expect(bridge.plugin_list()).resolves.toBe(plugins);
+    expect(invoke).toHaveBeenLastCalledWith('plugin_list', undefined);
+
+    await expect(bridge.diagnostics_export()).resolves.toEqual({ path: '/tmp/dsh-diagnostics.zip' });
+    expect(invoke).toHaveBeenLastCalledWith('diagnostics_export', undefined);
   });
 });
 

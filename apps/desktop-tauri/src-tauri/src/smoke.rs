@@ -35,6 +35,7 @@ struct SmokeReport {
     ready_line: Option<ReadyLineReport>,
     hello_received: bool,
     webview_attached: bool,
+    settings: crate::settings::DesktopSettings,
     errors: Vec<String>,
 }
 
@@ -93,6 +94,7 @@ async fn run(app: AppHandle, state: AppState) {
         },
         hello_received: state.shared.hello_seen(),
         webview_attached: state.shared.webview_attached(),
+        settings: crate::settings::load_from(&crate::settings::settings_path()),
         errors,
     };
 

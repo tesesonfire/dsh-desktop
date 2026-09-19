@@ -19,16 +19,27 @@ export type {
   TauriGlobalLike,
   Unsubscribe,
 } from './bridge.js';
-export { useBridgeLogs, useHostStatus, DEFAULT_LOG_LINES } from './hooks.js';
+export { useBridgeLogs, useHostStatus, usePluginList, useShellSettings, DEFAULT_LOG_LINES } from './hooks.js';
+export type {
+  PluginListController,
+  ShellSettingsController,
+  ShellSettingsSaveState,
+} from './hooks.js';
 
 // Contract re-exports: app code should import bridge types from here, keeping
 // packages/protocol the only place that defines them.
-export { BRIDGE_EVENTS, DESKTOP_BRIDGE_METHODS } from '@dsh-desktop/protocol';
+export {
+  BRIDGE_EVENTS,
+  DESKTOP_BRIDGE_METHODS,
+  DESKTOP_SETTINGS_DEFAULTS,
+} from '@dsh-desktop/protocol';
 export type {
   BridgeEvents,
   DesktopBridge,
+  DesktopSettings,
   HostEndpoint,
   HostState,
   HostStatus,
+  InstalledPlugin,
   Profile,
 } from '@dsh-desktop/protocol';

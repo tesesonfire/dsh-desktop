@@ -6,7 +6,10 @@
 use tauri::{AppHandle, Manager};
 use tauri_plugin_opener::OpenerExt;
 
+use crate::diagnostics;
 use crate::launcher::{self, Profile};
+use crate::plugin_inventory;
+use crate::settings;
 use crate::settings_window;
 use crate::sidecar::{AppState, HostEndpoint, HostStatus};
 
@@ -134,4 +137,72 @@ pub fn open_external(app: AppHandle, url: String) -> Result<(), String> {
 #[tauri::command]
 pub fn get_app_version() -> Result<String, String> {
     Ok(env!("CARGO_PKG_VERSION").to_string())
+}
+
+// -- v1.1：设置 / 插件清单 / 诊断 ------------------------------------------
+
+/// Load shell settings (defaults when the file is missing or corrupt).
+#[tauri::command]
+pub fn settings_get() -> Result<settings::DesktopSettings, String> {
+    Ok(settings::load_from(&settings::settings_path()))
+}
+
+/// Validate → persist → apply. Zoom lands on the live webContents immediately;
+/// close/start keys are read at close/mount time.
+#[tauri::command]
+pub fn settings_set(patch: serde_json::Value) -> Result<settings::DesktopSettings, String> {
+    let current = settings::load_from(&settings::settings_path());
+    let next = settings::apply_patch(&current, &patch).map_err(|err| err.0)?;
+    settings::save_to(&settings::settings_path(), &next).map_err(|err| err.0)?;
+    // TODO(verify-with-cargo): WebviewWindow::set_zoom exists in tauri 2.x but
+    // is not exercised by the local reference crate — CI compiles this.
+    if let Some(app) = crate::APP.get() {
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.set_zoom(next.zoom_factor);
+        }
+    }
+    Ok(next)
+}
+
+/// Read-only inventory of DSH plugins in the current profile.
+#[tauri::command]
+pub fn plugin_list() -> Result<Vec<plugin_inventory::InstalledPlugin>, String> {
+    let profile = launcher::current_profile();
+    Ok(plugin_inventory::list_profile_plugins(&launcher::profiles_dir().join(profile)))
+}
+
+/// Collect + write the diagnostics report to the desktop dir, reveal it.
+#[tauri::command]
+pub fn diagnostics_export(app: AppHandle, state: tauri::State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let host_status = serde_json::to_value(state.shared.status()).map_err(|err| err.to_string())?;
+    let host_hello = state
+        .shared
+        .hello_info()
+        .and_then(|hello| serde_json::to_value(hello).ok())
+        .unwrap_or(serde_json::Value::Null);
+    let profiles = serde_json::to_value(launcher::list_profiles()).map_err(|err| err.to_string())?;
+    let current = settings::load_from(&settings::settings_path());
+    let settings_value = serde_json::to_value(current).map_err(|err| err.to_string())?;
+    let desktop_state = std::fs::read_to_string(launcher::desktop_state_path())
+        .ok()
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+        .unwrap_or(serde_json::Value::Null);
+
+    let logs_dir = app.path().app_data_dir().ok().map(|dir| dir.join("logs"));
+    let dsh_home = launcher::dsh_home();
+    let input = diagnostics::DiagnosticsInput {
+        app_version: env!("CARGO_PKG_VERSION"),
+        platform: std::env::consts::OS,
+        dsh_home: &dsh_home.to_string_lossy(),
+        logs_dir: logs_dir.as_deref().unwrap_or(std::path::Path::new(".")),
+        host_status,
+        host_hello,
+        profiles,
+        settings: settings_value,
+        desktop_state,
+    };
+    let report = diagnostics::collect(&input);
+    let dir = dirs::desktop_dir().unwrap_or_else(dirs::data_dir).unwrap_or(std::env::temp_dir());
+    let file = diagnostics::write_report(&dir, &report)?;
+    Ok(serde_json::json!({ "path": file.to_string_lossy() }))
 }

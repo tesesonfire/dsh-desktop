@@ -49,6 +49,10 @@ export const DESKTOP_SETTINGS_DEFAULTS: DesktopSettings = {
   zoomFactor: 1.0,
 };
 
+/** Canonical zoom bounds (settings_set validates against these). */
+export const DESKTOP_ZOOM_MIN = 0.5;
+export const DESKTOP_ZOOM_MAX = 2.0;
+
 /** A plugin installed in the current DSH profile (scan of dsh.bundle manifests). */
 export interface InstalledPlugin {
   /** npm package name, e.g. `dsh-desktop-shell`. */

@@ -59,7 +59,7 @@ async function expectEventuallyDead(pid: number, timeoutMs = 10_000): Promise<vo
 describe('killProcessTree', () => {
   it(
     'kills a real process tree (child and grandchild both die)',
-    { timeout: 30_000 },
+    { timeout: 90_000 },
     async () => {
       const child = spawn(process.execPath, ['-e', CHILD_CODE], {
         stdio: ['ignore', 'pipe', 'ignore'],

@@ -28,6 +28,10 @@ export function makeFakeBridge(overrides: Partial<DesktopBridge> = {}): DesktopB
     open_data_dir: async () => undefined,
     open_external: async () => undefined,
     get_app_version: async () => '0.1.0',
+    settings_get: async () => ({ closeToTray: true, startMinimized: false, zoomFactor: 1 }),
+    settings_set: async () => ({ closeToTray: true, startMinimized: false, zoomFactor: 1 }),
+    plugin_list: async () => [{ name: 'dsh-web-app', version: '0.1.0' }],
+    diagnostics_export: async () => ({ path: '/tmp/dsh-diagnostics.zip' }),
     ...overrides,
   } as DesktopBridge;
 }

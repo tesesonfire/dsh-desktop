@@ -23,6 +23,7 @@ export interface SmokeReport {
   readyLine: { port: number; url: string } | null;
   helloReceived: boolean;
   webviewAttached: boolean;
+  settings: { closeToTray: boolean; startMinimized: boolean; zoomFactor: number };
   errors: string[];
 }
 
@@ -47,6 +48,9 @@ export interface SmokeWatchOptions {
   sidecarPid: () => number | undefined;
   helloSeen: () => boolean;
   webviewAttached: () => boolean;
+  settings: () => { closeToTray: boolean; startMinimized: boolean; zoomFactor: number };
+  /** DSH_SMOKE_EXPECT=error: finish(0) once the sidecar lands in error state. */
+  expectError?: boolean;
 }
 
 export interface SmokeWatch {
@@ -83,6 +87,7 @@ export function startSmokeWatch(options: SmokeWatchOptions): SmokeWatch {
         : null,
       helloReceived: options.helloSeen(),
       webviewAttached: options.webviewAttached(),
+      settings: options.settings(),
       errors: [...errorsSeen],
     };
   };
@@ -98,6 +103,10 @@ export function startSmokeWatch(options: SmokeWatchOptions): SmokeWatch {
     const helloOk = options.helloSeen();
     const attachOk = options.webviewAttached();
 
+    if (options.expectError === true && status.state === 'error') {
+      finish(buildReport(), 0);
+      return;
+    }
     if (readyOk && helloOk && attachOk) {
       finish(buildReport(), 0);
       return;

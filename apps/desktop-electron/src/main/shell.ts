@@ -16,10 +16,19 @@
 import { BrowserWindow, screen, shell } from 'electron';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { isSameOrigin } from '@dsh-desktop/protocol';
+import { isSameOrigin, DESKTOP_ZOOM_MAX, DESKTOP_ZOOM_MIN, type DesktopSettings, type Profile } from '@dsh-desktop/protocol';
 import { createTray, type TrayActions, type TrayController } from './tray';
 
 export const WINDOW_STATE_WRITE_DELAY_MS = 250;
+
+export const ZOOM_STEP = 0.1;
+
+/** Pure zoom math for Ctrl+= / Ctrl+- / Ctrl+0 shortcuts (unit-tested). */
+export function applyZoomStep(current: number, key: '+' | '-' | '0', baseZoom: number): number {
+  if (key === '0') return baseZoom;
+  const next = key === '+' ? current + ZOOM_STEP : current - ZOOM_STEP;
+  return Math.min(DESKTOP_ZOOM_MAX, Math.max(DESKTOP_ZOOM_MIN, Number(next.toFixed(2))));
+}
 
 /**
  * Pure navigation fence, shared by the main window and unit tests.
@@ -107,7 +116,13 @@ export interface ShellGenerationOptions {
   trayActions: TrayActions;
   /** Fired when the main window is closed by the user (hidden to tray). */
   onWindowCloseRequest: () => void;
+  /** Fired when the user closes the window and closeToTray is off (→ quit). */
+  onQuitRequested: () => void;
   isQuitting: () => boolean;
+  /** Live settings snapshot (close-to-tray, start-minimized, zoom). */
+  settings: () => DesktopSettings;
+  /** Persist a zoom change made via keyboard shortcuts. */
+  onZoomChange?: (zoomFactor: number) => void;
   log: (level: 'info' | 'warn' | 'error', line: string) => void;
 }
 
@@ -135,6 +150,18 @@ export class ShellGeneration {
   /** The fence opens for the ready-line origin once the host reported ready. */
   setReadyOrigin(origin: string): void {
     this.readyOrigin = origin;
+  }
+
+  /** Apply a zoom change from settings_set to the live webContents. */
+  setZoom(zoomFactor: number): void {
+    const win = this.getMainWindow();
+    if (win === null) return;
+    win.webContents.setZoomFactor(zoomFactor);
+  }
+
+  /** Push host/profile state to the tray menu (no-op without a tray). */
+  updateTray(snapshot: { hostState: Parameters<TrayController['update']>[0]['hostState']; port?: number; profiles?: Profile[]; currentProfile?: string | null }): void {
+    this.tray?.update(snapshot);
   }
 
   mount(): BrowserWindow {
@@ -166,15 +193,33 @@ export class ShellGeneration {
     this.window = win;
     this.mounted = true;
 
+    const closeToTray = (): boolean => this.options.settings().closeToTray;
+    const startMinimized = this.options.settings().startMinimized;
+
     win.on('move', () => this.schedulePersistWindowState());
     win.on('resize', () => this.schedulePersistWindowState());
     win.on('close', (event) => {
       this.persistWindowState();
       if (this.options.isQuitting()) return;
-      // Close-to-tray; the plugin learns about it through the control channel.
-      event.preventDefault();
-      win.hide();
-      this.options.onWindowCloseRequest();
+      if (closeToTray()) {
+        // Close-to-tray; the plugin learns about it through the control channel.
+        event.preventDefault();
+        win.hide();
+        this.options.onWindowCloseRequest();
+        return;
+      }
+      // User opted out of close-to-tray: closing the last window quits.
+      this.options.onQuitRequested();
+    });
+    // Zoom shortcuts (Ctrl/⌘ + =, -, 0); persisted via onZoomChange.
+    win.webContents.on('before-input-event', (event, input) => {
+      if (!(input.control || input.meta) || input.type !== 'keyDown') return;
+      const key = input.key;
+      if (key !== '=' && key !== '+' && key !== '-' && key !== '0') return;
+      const current = win.webContents.getZoomFactor();
+      const next = applyZoomStep(current, key === '=' || key === '+' ? '+' : key === '-' ? '-' : '0', this.options.settings().zoomFactor);
+      win.webContents.setZoomFactor(next);
+      this.options.onZoomChange?.(next);
     });
     win.webContents.on('will-frame-navigate', (event) => {
       if (!event.isMainFrame) return;
@@ -201,6 +246,7 @@ export class ShellGeneration {
     this.tray = createTray({ actions: this.options.trayActions, log: this.options.log });
 
     win.once('ready-to-show', () => {
+      if (startMinimized) return; // tray-only start (user setting)
       if (!win.isDestroyed() && !this.released) win.show();
     });
     this.localLoad = win
@@ -281,6 +327,8 @@ export class ShellGeneration {
     await this.localLoad;
     if (win.isDestroyed()) throw new Error('attach rejected: main window destroyed during local load');
     await win.loadURL(url);
+    // Zoom carries over to the host page for the same webContents.
+    win.webContents.setZoomFactor(this.options.settings().zoomFactor);
   }
 
   /** Idempotent teardown: tray, listeners, timers, windows. */

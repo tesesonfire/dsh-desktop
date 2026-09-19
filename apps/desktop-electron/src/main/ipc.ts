@@ -14,13 +14,16 @@ import {
   BRIDGE_EVENTS,
   DESKTOP_BRIDGE_METHODS,
   type DesktopBridge,
+  type DesktopSettings,
   type HostEndpoint,
   type HostStatus,
+  type InstalledPlugin,
   type Profile,
 } from '@dsh-desktop/protocol';
 import type { DshSidecar } from './sidecar';
 import type { Launcher } from './launcher';
 import type { ShellGeneration } from './shell';
+import type { SettingsStore } from './settings-store';
 
 export interface DesktopBridgeDeps {
   sidecar: DshSidecar;
@@ -28,15 +31,25 @@ export interface DesktopBridgeDeps {
   launcher: Launcher;
   openSettings: () => void;
   userDataDir: string;
+  settingsStore: SettingsStore;
+  /** Read-only plugin inventory of the current profile (dsh.bundle/client manifests). */
+  pluginList: () => InstalledPlugin[];
+  /** Collect + write the diagnostics report; returns the written file path. */
+  exportDiagnostics: () => { path: string };
   log: (level: 'info' | 'warn' | 'error', line: string) => void;
   /** Subscribe to (already masked) main-process log lines for the 'dsh:log' push channel. */
   logOnLine: (subscriber: (entry: { level: 'info' | 'warn' | 'error'; line: string }) => void) => () => void;
+  /** Manual host_start re-arms the crash supervisor after a give-up. */
+  onHostStart?: () => void;
 }
 
 /** Bridge surface implementation, type-checked against the canonical contract. */
 function createBridge(deps: DesktopBridgeDeps): DesktopBridge {
   return {
-    host_start: (): Promise<HostEndpoint> => deps.sidecar.spawn(),
+    host_start: (): Promise<HostEndpoint> => {
+      deps.onHostStart?.();
+      return deps.sidecar.spawn();
+    },
     host_stop: async (): Promise<void> => {
       await deps.sidecar.stop();
     },
@@ -80,6 +93,17 @@ function createBridge(deps: DesktopBridgeDeps): DesktopBridge {
       await shell.openExternal(parsed.href);
     },
     get_app_version: async (): Promise<string> => app.getVersion(),
+
+    settings_get: async (): Promise<DesktopSettings> => deps.settingsStore.get(),
+    settings_set: async (patch: Partial<DesktopSettings>): Promise<DesktopSettings> => {
+      const next = deps.settingsStore.set(patch);
+      // Zoom applies to the live webContents; the other keys are read at
+      // window close/mount time.
+      deps.generation.setZoom(next.zoomFactor);
+      return next;
+    },
+    plugin_list: async (): Promise<InstalledPlugin[]> => deps.pluginList(),
+    diagnostics_export: async (): Promise<{ path: string }> => deps.exportDiagnostics(),
   };
 }
 
@@ -105,6 +129,10 @@ export function registerDesktopBridgeIpc(deps: DesktopBridgeDeps): BridgeIpcRegi
   ipcMain.handle('bridge:open_data_dir', () => bridge.open_data_dir());
   ipcMain.handle('bridge:open_external', (_event, url: string) => bridge.open_external(url));
   ipcMain.handle('bridge:get_app_version', () => bridge.get_app_version());
+  ipcMain.handle('bridge:settings_get', () => bridge.settings_get());
+  ipcMain.handle('bridge:settings_set', (_event, patch: Partial<DesktopSettings>) => bridge.settings_set(patch));
+  ipcMain.handle('bridge:plugin_list', () => bridge.plugin_list());
+  ipcMain.handle('bridge:diagnostics_export', () => bridge.diagnostics_export());
 
   const sendToAll = (channel: string, payload: unknown): void => {
     for (const win of BrowserWindow.getAllWindows()) {
