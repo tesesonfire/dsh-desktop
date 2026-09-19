@@ -33,7 +33,8 @@ pnpm dev:electron           # 无 DSH_BIN 时 UI 显示错误面板 + 指引
 
 **profile**：位于 `$DSH_HOME/profiles/<name>`（默认 `~/.dsh`）。空目录时壳自举默认 profile（`dsh-desktop-electron` / `dsh-desktop-tauri`，bundles = dsh-base + dsh-web-app，镜像官方 initProfile）。CLI 拒绝 `--profile desktop`（官方 Electron 专属）——不要用这个名字。插件注入走 `--patch` overlay，不修改用户 cordis.patch.yml。
 
-**DSH_SMOKE 契约**：`DSH_SMOKE=1` + `DSH_SMOKE_OUT=<path>` 下，壳走真实窗口/托盘/sidecar 路径，三条件（running + hello + attached）齐备写报告并退出 0；90s 超时带 errors 退出 1。
+**DSH_SMOKE 契约**：`DSH_SMOKE=1` + `DSH_SMOKE_OUT=<path>` 下，壳走真实窗口/托盘/sidecar 路径，三条件（running + hello + attached）齐备写报告（含 settings 字段）并退出 0；90s 超时带 errors 退出 1。
+`DSH_SMOKE_EXPECT=error`（pnpm smoke:fail-path:electron）走失败路径演练：坏 DSH_BIN → 到达 error 状态 + 干净退出 + 零残留。
 
 ## 2. 完成状态 / 完成标准对照
 
@@ -48,7 +49,9 @@ pnpm dev:electron           # 无 DSH_BIN 时 UI 显示错误面板 + 指引
 | HANDOFF.md 完成/未完成/如何跑/风险/下一步 | ✅ | 本文档 |
 | 未完成项 `// TODO(reason)` | ✅ | updater×2、打包态 patch 路径、tauri 首编译（均有原因注释） |
 
-**测试计数**：protocol 6、desktop-shell 4、ui 21、core 2、llm-sdk 3、mcp-client 2（真子进程 MCP server）、session-store 1、desktop-electron 30（含真进程树 kill、真 mock-dsh sidecar）、desktop-tauri 1 → **9 组 70 测试全绿**。
+**测试计数**：protocol 6、desktop-shell 4、ui 28、core 2、llm-sdk 3、mcp-client 2（真子进程 MCP server）、session-store 1、desktop-electron 56（真进程树 kill、真 mock-dsh sidecar、supervisor 假时钟、settings 持久化、诊断脱敏、导航围栏）、desktop-tauri 1 → **10 组 100+ 测试全绿**。
+
+**GitHub + CI**：https://github.com/tesesonfire/dsh-desktop 。CI 三类 job：node（build/test/audit）✅、electron clean-boot smoke（windows）✅、rust 三 OS（clippy -D warnings → test → build）迭代中——本机无 Rust 工具链，Tauri 的首次真实编译即由 CI 完成，已修 14 处（缺分号、E0505 借用×2、await-in-sync、u64/usize、center()、CreateJobObjectW 不可用→改用已验证 taskkill /T /F、HelloInfo Serialize、dirs 链、Submenu &dyn 装箱、clippy manual_inspect/useless_conversion、unused mut/shared、dangling cfg）。详见 git log fix(tauri)。
 
 ## 3. 未完成 / TODO（全部有代码内标注）
 
