@@ -290,10 +290,6 @@ pub struct ControlChannel {
     pub token: String,
 }
 
-/// Per-spawn Windows job-object slot; empty on other platforms.
-#[derive(Default)]
-struct JobSlot(#[cfg(windows)] Mutex<Option<proc_kill::JobObject>>);
-
 /// Everything shared between the sidecar, the control server and the IPC
 /// commands. All locks are short, non-async and never held across `.await`.
 pub struct Shared {
@@ -309,7 +305,6 @@ pub struct Shared {
     pid: AtomicU32,
     generation: AtomicU64,
     profile: RwLock<String>,
-    job: JobSlot,
 }
 
 impl Default for Shared {
@@ -327,7 +322,6 @@ impl Default for Shared {
             pid: AtomicU32::new(0),
             generation: AtomicU64::new(0),
             profile: RwLock::new(launcher::DEFAULT_PROFILE.to_string()),
-            job: JobSlot::default(),
         }
     }
 }
@@ -548,7 +542,7 @@ impl DshSidecar {
                 HostState::Stopped | HostState::Error => {}
             }
             let profile = self.shared.current_profile();
-            self.spawn_process(&profile).map_err(|err| {
+            self.spawn_process(&profile).await.map_err(|err| {
                 self.shared.set_error(&err);
                 self.emit_state();
                 err
@@ -560,7 +554,7 @@ impl DshSidecar {
         self.wait_ready(generation).await
     }
 
-    fn spawn_process(&self, profile: &str) -> Result<(), String> {
+    async fn spawn_process(&self, profile: &str) -> Result<(), String> {
         let dsh_home = launcher::dsh_home();
         std::fs::create_dir_all(&dsh_home)
             .map_err(|err| format!("cannot create DSH_HOME {}: {err}", dsh_home.display()))?;
@@ -596,31 +590,6 @@ impl DshSidecar {
         let pid = child.id().unwrap_or(0);
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
-
-        // Windows: put the child into a kill-on-close job object so even a
-        // leaked handle cannot orphan the tree (see proc_kill::JobObject).
-        // NOTE: the JobObject must survive into shared state — dropping it
-        // closes the job handle, and kill-on-close would terminate the child.
-        #[cfg(windows)]
-        match child.raw_handle() {
-            Some(raw) => match proc_kill::JobObject::create() {
-                Ok(job) => {
-                    if let Err(err) = job.assign_handle(raw) {
-                        tracing::warn!(
-                            "job object assignment failed, tree kill degrades to taskkill: {err}"
-                        );
-                    } else if let Ok(mut slot) = self.shared.job.0.lock() {
-                        *slot = Some(job);
-                    } else {
-                        tracing::error!("job slot lock poisoned; kill-on-close will reap the tree");
-                    }
-                }
-                Err(err) => {
-                    tracing::warn!("job object unavailable, falling back to taskkill only: {err}")
-                }
-            },
-            None => tracing::warn!("child raw handle unavailable; job object not assigned"),
-        }
 
         *self.shared.child.lock().await = Some(child);
         self.shared.set_starting(profile, pid);
@@ -696,8 +665,7 @@ impl DshSidecar {
         let child = self.shared.child.lock().await.take();
         let pid = self.shared.pid();
         if pid > 0 {
-            let job = self.take_job();
-            proc_kill::kill_process_tree(pid, job.as_ref()).await;
+            proc_kill::kill_process_tree(pid).await;
         }
         if let Some(mut child) = child {
             // Reap so the tokio runtime does not leave a zombie on unix.
@@ -737,8 +705,7 @@ impl DshSidecar {
         };
         let pid = self.shared.pid();
         if pid > 0 {
-            let job = self.take_job();
-            proc_kill::kill_process_tree_blocking(pid, job.as_ref());
+            proc_kill::kill_process_tree_blocking(pid);
         }
         if let Some(mut child) = child {
             let _ = child.start_kill();
@@ -747,14 +714,6 @@ impl DshSidecar {
     }
 
     #[cfg(windows)]
-    fn take_job(&self) -> Option<proc_kill::JobObject> {
-        self.shared.job.0.lock().ok().and_then(|mut slot| slot.take())
-    }
-
-    #[cfg(not(windows))]
-    fn take_job(&self) -> Option<proc_kill::JobObject> {
-        None
-    }
 
     fn emit_state(&self) {
         (self.sink)(SidecarEvent::State(self.shared.status()));

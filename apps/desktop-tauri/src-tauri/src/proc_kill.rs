@@ -1,14 +1,19 @@
 //! Process-tree termination — the shell's kill primitive.
 //!
-//! Windows: the sidecar child is assigned to a kill-on-close job object at
-//! spawn time; `TerminateJobObject` kills the whole tree instantly and
-//! `taskkill /T /F` is kept as a fallback for the no-job case.
+//! Windows: `taskkill /T /F` walks and force-terminates the whole tree by
+//! pid (the same primitive the Electron shell exercises in its tests).
 //! Unix: the child is spawned with `process_group(0)`, so the whole tree
 //! shares a process group that can be signalled as `-pid`
 //! (SIGTERM → grace → SIGKILL).
+//!
+//! NOTE(kernel-job-object): a windows-sys Job Object (KILL_ON_JOB_CLOSE) was
+//! attempted first, but `CreateJobObjectW` is not exported by windows-sys
+//! 0.59's `Win32::System::JobObjects` under our feature set — CI proved it.
+//! The taskkill path is the verified primitive; revisit the job object only
+//! with a `windows` crate migration.
 
 // The graceful SIGTERM wait (Duration/Instant) exists on Unix only; Windows
-// terminates immediately through the job object / taskkill.
+// terminates immediately through taskkill.
 #[cfg(unix)]
 use std::time::{Duration, Instant};
 
@@ -21,121 +26,14 @@ fn pid_is_valid(pid: u32) -> bool {
     pid > 0
 }
 
-// ---------------------------------------------------------------------------
-// Windows job objects
-// ---------------------------------------------------------------------------
-
-#[cfg(windows)]
-mod job {
-    use std::os::windows::io::RawHandle;
-    use std::ptr;
-
-    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
-    use windows_sys::Win32::System::JobObjects::{
-        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
-        SetInformationJobObject, TerminateJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-    };
-
-    /// RAII wrapper around a Windows job object configured with
-    /// JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE: if our process dies with the handle
-    /// still open, the kernel terminates every process in the job.
-    pub struct JobObject {
-        handle: HANDLE,
-    }
-
-    // SAFETY: HANDLE is a raw kernel pointer, but the job object is only used
-    // through the Windows API which is thread-safe.
-    unsafe impl Send for JobObject {}
-    unsafe impl Sync for JobObject {}
-
-    impl JobObject {
-        /// Create a job object with the kill-on-close limit set.
-        pub fn create() -> Result<Self, String> {
-            // SAFETY: both arguments are documented as optional (null).
-            let handle = unsafe { CreateJobObjectW(ptr::null(), ptr::null()) };
-            if handle.is_null() {
-                return Err("CreateJobObjectW failed".to_string());
-            }
-            // SAFETY: zeroed JOBOBJECT_EXTENDED_LIMIT_INFORMATION is the
-            // documented "no limits" state; we only set the limit flags.
-            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = unsafe { std::mem::zeroed() };
-            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-            // SAFETY: handle is valid, info pointer and size match the class.
-            let ok = unsafe {
-                SetInformationJobObject(
-                    handle,
-                    JobObjectExtendedLimitInformation,
-                    &info as *const _ as *const core::ffi::c_void,
-                    std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
-                )
-            };
-            if ok == 0 {
-                // Drop through a temporary JobObject so its RAII close runs.
-                let failed = Self { handle };
-                drop(failed);
-                return Err("SetInformationJobObject failed".to_string());
-            }
-            Ok(Self { handle })
-        }
-
-        /// Assign the freshly spawned child (via its raw process handle — we
-        /// own it, so no OpenProcess round-trip is needed) to the job.
-        pub fn assign_handle(&self, raw: RawHandle) -> Result<(), String> {
-            // RawHandle and windows-sys HANDLE are both *mut c_void.
-            // SAFETY: both handles are valid.
-            let ok = unsafe { AssignProcessToJobObject(self.handle, raw) };
-            if ok == 0 {
-                return Err("AssignProcessToJobObject failed".to_string());
-            }
-            Ok(())
-        }
-
-        /// Terminate every process currently in the job.
-        pub fn terminate(&self) -> Result<(), String> {
-            // SAFETY: handle is valid; exit code 1 marks a forced kill.
-            let ok = unsafe { TerminateJobObject(self.handle, 1) };
-            if ok == 0 {
-                return Err("TerminateJobObject failed".to_string());
-            }
-            Ok(())
-        }
-    }
-
-    impl Drop for JobObject {
-        fn drop(&mut self) {
-            // SAFETY: handle is owned exclusively by this struct.
-            unsafe { CloseHandle(self.handle) };
-        }
-    }
-}
-
-#[cfg(windows)]
-pub use job::JobObject;
-
-/// Type placeholder so signatures stay identical across platforms.
-#[cfg(not(windows))]
-#[derive(Debug)]
-pub struct JobObject;
-
-// ---------------------------------------------------------------------------
-// Tree kill
-// ---------------------------------------------------------------------------
-
 /// Kill the process tree rooted at `pid`. Async because the Unix path waits
 /// up to 3 seconds for a graceful SIGTERM exit.
-pub async fn kill_process_tree(pid: u32, job: Option<&JobObject>) {
+pub async fn kill_process_tree(pid: u32) {
     if !pid_is_valid(pid) {
         return;
     }
     #[cfg(windows)]
     {
-        if let Some(job) = job {
-            if let Err(err) = job.terminate() {
-                tracing::warn!("TerminateJobObject({pid}) failed: {err}");
-            }
-        }
-        // Fallback / no-job case: taskkill walks the tree by pid.
         let _ = tokio::process::Command::new("taskkill")
             .args(["/pid", &pid.to_string(), "/T", "/F"])
             .creation_flags(CREATE_NO_WINDOW)
@@ -144,7 +42,6 @@ pub async fn kill_process_tree(pid: u32, job: Option<&JobObject>) {
     }
     #[cfg(unix)]
     {
-        let _ = job;
         // SAFETY: signal sending has no memory-safety preconditions.
         unsafe { libc::kill(-(pid as i32), libc::SIGTERM) };
         let deadline = Instant::now() + Duration::from_secs(3);
@@ -163,15 +60,12 @@ pub async fn kill_process_tree(pid: u32, job: Option<&JobObject>) {
 /// Synchronous variant for exit paths where awaiting is impossible
 /// (RunEvent::Exit, tray Quit). On Unix the SIGKILL escalation is delegated
 /// to a detached thread so the UI thread never blocks for the grace period.
-pub fn kill_process_tree_blocking(pid: u32, job: Option<&JobObject>) {
+pub fn kill_process_tree_blocking(pid: u32) {
     if !pid_is_valid(pid) {
         return;
     }
     #[cfg(windows)]
     {
-        if let Some(job) = job {
-            let _ = job.terminate();
-        }
         use std::os::windows::process::CommandExt;
         let _ = std::process::Command::new("taskkill")
             .args(["/pid", &pid.to_string(), "/T", "/F"])
@@ -180,7 +74,6 @@ pub fn kill_process_tree_blocking(pid: u32, job: Option<&JobObject>) {
     }
     #[cfg(unix)]
     {
-        let _ = job;
         // SAFETY: signal sending has no memory-safety preconditions.
         unsafe { libc::kill(-(pid as i32), libc::SIGTERM) };
         std::thread::spawn(move || {
@@ -257,7 +150,7 @@ mod unix_tests {
         let pid = child.id().expect("pid");
         assert!(is_pid_alive(pid));
 
-        tokio::time::timeout(Duration::from_secs(30), kill_process_tree(pid, None))
+        tokio::time::timeout(Duration::from_secs(30), kill_process_tree(pid))
             .await
             .expect("kill completes within timeout");
 
@@ -311,7 +204,7 @@ mod windows_tests {
         let pid = child.id().expect("pid");
         assert!(is_pid_alive(pid));
 
-        tokio::time::timeout(Duration::from_secs(30), kill_process_tree(pid, None))
+        tokio::time::timeout(Duration::from_secs(30), kill_process_tree(pid))
             .await
             .expect("kill completes within timeout");
 

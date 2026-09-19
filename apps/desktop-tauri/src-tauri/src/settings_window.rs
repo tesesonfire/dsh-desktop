@@ -17,7 +17,7 @@ pub fn open_settings(app: &AppHandle) -> Result<(), String> {
         .title("DSH Desktop — Settings")
         .inner_size(760.0, 560.0)
         .min_inner_size(480.0, 360.0)
-        .center(true)
+        .center()
         .resizable(true)
         // The settings window only ever shows the shell's own frontend:
         // pre-ready allowlist, everything else (including the DSH origin) is

@@ -166,7 +166,7 @@ pub fn run() {
             eprintln!("fatal: {err}");
             std::process::exit(1);
         }
-    }
+    };
 
     app.run(|app, event| match event {
         // Both exit phases funnel into the same idempotent teardown:
@@ -203,10 +203,13 @@ fn build_event_sink() -> EventSink {
             if status.state == HostState::Running {
                 supervisor::handle_state(true, None, || {});
                 if let Some(url) = status.url.clone() {
-                    let app = app.clone();
-                    // Window operations must run on the main thread.
-                    let _ = app.run_on_main_thread(move || {
-                        attach_main_window(&app, &url);
+                    let runner = app.clone();
+                    let target = app.clone();
+                    // Window operations must run on the main thread; the
+                    // receiver borrows one clone, the closure owns another
+                    // (moving the borrowed binding is E0505).
+                    let _ = runner.run_on_main_thread(move || {
+                        attach_main_window(&target, &url);
                     });
                 }
             }

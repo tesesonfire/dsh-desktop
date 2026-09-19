@@ -268,14 +268,16 @@ fn handle_webview_attach(mut request: Request, app: &AppHandle, state: &AppState
         return;
     }
 
-    let app = app.clone();
+    let runner = app.clone();
+    let window_app = app.clone();
     let url = attach.url;
     // Navigation must happen on the main thread; run_on_main_thread queues it.
-    let _ = app.run_on_main_thread(move || {
-        let Some(window) = app.get_webview_window("main") else {
+    // Receiver borrows one clone, the closure owns another (E0505 otherwise).
+    let _ = runner.run_on_main_thread(move || {
+        let Some(window) = window_app.get_webview_window("main") else {
             return;
         };
-        let state = app.state::<AppState>();
+        let state = window_app.state::<AppState>();
         // Skip a redundant reload when the shell already navigated to the
         // exact same URL on the ready line.
         if state.shared.ready_url().as_deref() != Some(url.as_str()) {
@@ -345,7 +347,7 @@ fn read_body(request: &mut Request) -> Result<String, u16> {
     let mut body = String::new();
     request
         .as_reader()
-        .take(len)
+        .take(u64::try_from(len).unwrap_or(0))
         .read_to_string(&mut body)
         .map_err(|_| 400u16)?;
     Ok(body)
