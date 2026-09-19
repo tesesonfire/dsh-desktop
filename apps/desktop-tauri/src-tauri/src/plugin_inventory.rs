@@ -50,8 +50,11 @@ struct ClientView {
 fn parse_manifest(dir: &Path) -> Option<InstalledPlugin> {
     let text = fs::read_to_string(dir.join("package.json")).ok()?;
     let manifest: ManifestView = serde_json::from_str(&text).ok()?;
-    let bundle_patch = manifest.dsh.as_ref()?.bundle.as_ref()?.patch.clone();
-    let client_platform = manifest.dsh.as_ref()?.client.as_ref()?.platform.clone();
+    let dsh = manifest.dsh.as_ref()?;
+    // The two faces are independent — a package may declare either (or both),
+    // so the Option chains must not short-circuit each other.
+    let bundle_patch = dsh.bundle.as_ref().and_then(|b| b.patch.clone());
+    let client_platform = dsh.client.as_ref().and_then(|c| c.platform.clone());
     if bundle_patch.is_none() && client_platform.is_none() {
         return None;
     }

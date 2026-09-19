@@ -910,6 +910,7 @@ mod tests {
         std::fs::create_dir_all(&pkg).expect("mkdir");
         std::fs::write(pkg.join("cordis.patch.yml"), "- insert: []\n").expect("write");
         let exe = base.join("repo/target/debug/deps/dsh-test.exe");
+        std::fs::create_dir_all(exe.parent().expect("parent")).expect("mkdir deps");
         std::fs::write(&exe, b"").expect("write exe placeholder");
 
         let found = find_upward_from(
