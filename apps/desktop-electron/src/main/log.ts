@@ -36,17 +36,16 @@ function dateStamp(date: Date): string {
 }
 
 export class FileLogSink {
+  private readonly logsDir: string;
+  private readonly now: () => Date;
   private filePath: string | null = null;
   private fd: number | null = null;
   private size = 0;
   private readonly subscribers = new Set<LogSubscriber>();
-  private readonly stamp: string;
 
-  constructor(
-    private readonly logsDir: string,
-    private readonly now: () => Date = () => new Date(),
-  ) {
-    this.stamp = dateStamp(this.now());
+  constructor(logsDir: string, now: () => Date = () => new Date()) {
+    this.logsDir = logsDir;
+    this.now = now;
   }
 
   /** Open the sink and drop log files older than the retention window. */
@@ -57,7 +56,9 @@ export class FileLogSink {
   }
 
   private openFile(): void {
-    this.filePath = join(this.logsDir, `main-${this.stamp}.log`);
+    // Stamp computed on every (re)open so rotation across midnight lands in
+    // the current date's file instead of the one captured at construction.
+    this.filePath = join(this.logsDir, `main-${dateStamp(this.now())}.log`);
     try {
       this.fd = openSync(this.filePath, 'a');
       this.size = statSync(this.filePath).size;
@@ -105,7 +106,7 @@ export class FileLogSink {
       }
       this.fd = null;
     }
-    const base = join(this.logsDir, `main-${this.stamp}.log`);
+    const base = this.filePath ?? join(this.logsDir, `main-${dateStamp(this.now())}.log`);
     const oldest = `${base}.${ROTATED_FILES_KEPT}`;
     try {
       unlinkSync(oldest);

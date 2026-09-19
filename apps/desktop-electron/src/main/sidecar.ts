@@ -133,6 +133,24 @@ export function buildDshArgs(profile: string, patchYmlPath: string): string[] {
 }
 
 /**
+ * Child environment: inherits everything, pins the DSH contract vars, strips
+ * NODE_OPTIONS (a stray loader/debug flag from the user shell would otherwise
+ * apply to the run-as-node sidecar — the reference shell does the same) and
+ * lets DSH_BIN resolution extras (ELECTRON_RUN_AS_NODE) win last.
+ */
+export function buildChildEnv(
+  base: NodeJS.ProcessEnv,
+  opts: { profile: string; dshHome: string; controlUrl?: string; controlToken?: string },
+  command: DshCommand,
+): NodeJS.ProcessEnv {
+  const childEnv: NodeJS.ProcessEnv = { ...base, DSH_HOME: opts.dshHome, DSH_PROFILE_NAME: opts.profile };
+  delete childEnv['NODE_OPTIONS'];
+  if (opts.controlUrl !== undefined) childEnv[CONTROL_URL_ENV] = opts.controlUrl;
+  if (opts.controlToken !== undefined) childEnv[CONTROL_TOKEN_ENV] = opts.controlToken;
+  return { ...childEnv, ...command.extraEnv };
+}
+
+/**
  * Non-ready stdout lines are graded by keyword only; the ready line itself is
  * consumed by parseReadyLine and never reaches this classifier.
  */
@@ -286,14 +304,12 @@ export class DshSidecar extends EventEmitter<DshSidecarEvents> {
     const command = resolveDshCommand(this.env);
     const patchYmlPath = resolvePatchYmlPath(this.env);
     const args = [...command.args, ...buildDshArgs(this.profileName, patchYmlPath)];
-    const childEnv: NodeJS.ProcessEnv = {
-      ...this.env,
-      DSH_HOME: this.options.dshHome,
-      DSH_PROFILE_NAME: this.profileName,
-      ...command.extraEnv,
-    };
-    if (this.options.controlUrl !== undefined) childEnv[CONTROL_URL_ENV] = this.options.controlUrl;
-    if (this.options.controlToken !== undefined) childEnv[CONTROL_TOKEN_ENV] = this.options.controlToken;
+    const childEnv = buildChildEnv(this.env, {
+      profile: this.profileName,
+      dshHome: this.options.dshHome,
+      controlUrl: this.options.controlUrl,
+      controlToken: this.options.controlToken,
+    }, command);
 
     this.readyEndpoint = null;
     this.stopping = false;

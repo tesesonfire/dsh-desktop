@@ -29,6 +29,37 @@ export interface HostEndpoint {
   url: string;
 }
 
+/**
+ * v1.1 shell preferences (persisted per-user, applied by the platform shell).
+ * Both platforms must implement settings_get/settings_set with identical
+ * semantics: set() validates + persists + applies, then returns the new value.
+ */
+export interface DesktopSettings {
+  /** Window close hides to tray instead of quitting (default true). */
+  closeToTray: boolean;
+  /** Start with the main window hidden (tray only). */
+  startMinimized: boolean;
+  /** Renderer zoom factor, clamped to [0.5, 2.0]. */
+  zoomFactor: number;
+}
+
+export const DESKTOP_SETTINGS_DEFAULTS: DesktopSettings = {
+  closeToTray: true,
+  startMinimized: false,
+  zoomFactor: 1.0,
+};
+
+/** A plugin installed in the current DSH profile (scan of dsh.bundle manifests). */
+export interface InstalledPlugin {
+  /** npm package name, e.g. `dsh-desktop-shell`. */
+  name: string;
+  version: string;
+  /** Patch file declared via dsh.bundle.patch, when present. */
+  patchPath?: string;
+  /** Web client declaration via dsh.client, when present. */
+  clientPlatform?: string;
+}
+
 export interface DesktopBridge {
   // 生命周期
   host_start(): Promise<HostEndpoint>;
@@ -51,6 +82,12 @@ export interface DesktopBridge {
   open_data_dir(): Promise<void>;
   open_external(url: string): Promise<void>;
   get_app_version(): Promise<string>;
+
+  // v1.1 — shell settings / plugin inventory / diagnostics
+  settings_get(): Promise<DesktopSettings>;
+  settings_set(patch: Partial<DesktopSettings>): Promise<DesktopSettings>;
+  plugin_list(): Promise<InstalledPlugin[]>;
+  diagnostics_export(): Promise<{ path: string }>;
 }
 
 /**
@@ -75,6 +112,10 @@ export const DESKTOP_BRIDGE_METHODS = [
   'open_data_dir',
   'open_external',
   'get_app_version',
+  'settings_get',
+  'settings_set',
+  'plugin_list',
+  'diagnostics_export',
 ] as const satisfies readonly (keyof DesktopBridge)[];
 
 type _NoExtraInterfaceKeys = [Exclude<keyof DesktopBridge, (typeof DESKTOP_BRIDGE_METHODS)[number]>] extends [never] ? true : false;

@@ -21,6 +21,33 @@ import { createTray, type TrayActions, type TrayController } from './tray';
 
 export const WINDOW_STATE_WRITE_DELAY_MS = 250;
 
+/**
+ * Pure navigation fence, shared by the main window and unit tests.
+ *
+ * After the ready line: ONLY the ready origin (origin equality — the token
+ * query must survive, so the fence is origin-level, not prefix-level).
+ * Before it: only the local renderer surface (file: or an explicit dev-server
+ * origin via DSH_RENDERER_DEV_URL). Anything else — including file: after
+ * ready — is denied.
+ */
+export function navigationAllowed(url: string, readyOrigin: string | null, devUrl?: string): boolean {
+  if (readyOrigin !== null) return isSameOrigin(url, readyOrigin);
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === 'file:') return true;
+    if (devUrl !== undefined && devUrl.length > 0) {
+      try {
+        if (parsed.origin === new URL(devUrl).origin) return true;
+      } catch {
+        // invalid devUrl; ignore
+      }
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 export interface WindowState {
   width: number;
   height: number;
@@ -188,24 +215,7 @@ export class ShellGeneration {
   }
 
   private isNavigationAllowed(url: string): boolean {
-    if (this.readyOrigin !== null && isSameOrigin(url, this.readyOrigin)) return true;
-    // Before ready: only the local renderer surface. file: URLs are local by
-    // definition; a dev-server origin may be announced via DSH_RENDERER_DEV_URL.
-    try {
-      const parsed = new URL(url);
-      if (parsed.protocol === 'file:') return true;
-      const devUrl = process.env['DSH_RENDERER_DEV_URL'];
-      if (devUrl !== undefined && devUrl.length > 0) {
-        try {
-          if (parsed.origin === new URL(devUrl).origin) return true;
-        } catch {
-          // invalid DSH_RENDERER_DEV_URL; ignore
-        }
-      }
-    } catch {
-      return false;
-    }
-    return false;
+    return navigationAllowed(url, this.readyOrigin, process.env['DSH_RENDERER_DEV_URL']);
   }
 
   private schedulePersistWindowState(): void {
