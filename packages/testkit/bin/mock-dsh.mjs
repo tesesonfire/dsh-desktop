@@ -92,6 +92,10 @@ const server = buildServer(token);
 server.listen(portNum, '127.0.0.1', () => {
   const bound = /** @type {import('node:net').AddressInfo} */ (server.address()).port;
 
+  // Ready line FIRST — exact official format, nothing else prints to stdout.
+  // The cordis boot below is best-effort and must never gate the announce.
+  process.stdout.write(`dsh web: http://127.0.0.1:${bound}/?token=${token}\n`);
+
   // Boot the REAL cordis with the REAL desktop-shell plugin (control channel,
   // hello, event pump). Failures must not break the ready line.
   void (async () => {
@@ -108,8 +112,6 @@ server.listen(portNum, '127.0.0.1', () => {
     }
   })();
 
-  // Ready line — exact official format. Nothing else prints to stdout.
-  process.stdout.write(`dsh web: http://127.0.0.1:${bound}/?token=${token}\n`);
   if (!opts.noOpen) {
     process.stdout.write('dsh web: opening the default browser; pass --no-open to disable\n');
   }
