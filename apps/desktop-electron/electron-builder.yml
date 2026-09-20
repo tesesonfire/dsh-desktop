@@ -1,5 +1,5 @@
 appId: org.dsh-desktop.electron
-productName: DSH Desktop (Electron)
+productName: DSH Desktop Electron
 directories:
   output: release
 files:
