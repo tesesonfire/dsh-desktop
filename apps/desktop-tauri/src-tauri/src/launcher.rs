@@ -101,7 +101,7 @@ pub fn write_desktop_state_at(path: &Path, state: &DesktopState) -> Result<(), L
             Ok(()) => return Ok(()),
             Err(err) => {
                 last_err = Some(err);
-                std::thread::sleep(std::time::Duration::from_millis(40 * (attempt + 1)));
+                std::thread::sleep(std::time::Duration::from_millis(40 * (u64::from(attempt) + 1)));
             }
         }
     }
