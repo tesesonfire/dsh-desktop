@@ -207,6 +207,10 @@ fn read_manifest_bundles(profile_dir: &Path) -> Vec<String> {
 mod tests {
     use super::*;
 
+    /// cargo runs tests in parallel threads; DSH_HOME is process-global, so
+    /// every env-mutating test must hold this lock.
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     fn temp_home(tag: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
             "dsh-launcher-{tag}-{}-{}",
@@ -252,6 +256,7 @@ mod tests {
 
     #[test]
     fn switch_profile_sets_rollback_pointer_and_rejects_traversal() {
+        let _env = ENV_LOCK.lock().expect("env lock");
         let home = temp_home("switch");
         // SAFETY: this test binary owns DSH_HOME for the duration of the call.
         let previous = std::env::var("DSH_HOME").ok();
@@ -279,6 +284,7 @@ mod tests {
 
     #[test]
     fn profile_discovery_reads_manifest_bundles() {
+        let _env = ENV_LOCK.lock().expect("env lock");
         let home = temp_home("discovery");
         let profile_dir = home.join("profiles/dsh-desktop-tauri");
         std::fs::create_dir_all(&profile_dir).expect("mkdir");

@@ -871,7 +871,11 @@ mod tests {
     fn resolves_script_bin_through_path_node() {
         let cmd = resolve_dsh_command_from(Some("dsh.cjs"), None, &finder("node")).expect("resolves");
         // windows queries "node.exe" -> "/usr/bin/node.exe"; unix -> "/usr/bin/node"
-        assert!(cmd.program.ends_with("node"), "unexpected program: {}", cmd.program);
+        assert!(
+            cmd.program.trim_end_matches(".exe").ends_with("node"),
+            "unexpected program: {}",
+            cmd.program
+        );
         assert_eq!(cmd.args, vec!["dsh.cjs"]);
     }
 
