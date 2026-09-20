@@ -68,7 +68,9 @@ jobs:
         with:
           workspaces: apps/desktop-tauri/src-tauri
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter desktop-tauri build
+      # Full workspace build: vite consumes @dsh-desktop/ui from its dist, so
+      # the shared packages must be built before the renderer.
+      - run: pnpm build
       - name: tauri build (unsigned bundles)
         working-directory: apps/desktop-tauri
         run: pnpm tauri build
