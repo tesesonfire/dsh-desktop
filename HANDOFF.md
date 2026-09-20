@@ -51,7 +51,7 @@ pnpm dev:electron           # 无 DSH_BIN 时 UI 显示错误面板 + 指引
 
 **测试计数**：protocol 6、desktop-shell 4、ui 28、core 2、llm-sdk 3、mcp-client 2（真子进程 MCP server）、session-store 1、desktop-electron 56（真进程树 kill、真 mock-dsh sidecar、supervisor 假时钟、settings 持久化、诊断脱敏、导航围栏）、desktop-tauri 1 → **10 组 100+ 测试全绿**。
 
-**GitHub + CI**：https://github.com/tesesonfire/dsh-desktop 。CI 三类 job：node（build/test/audit）✅、electron clean-boot smoke（windows）✅、rust 三 OS（clippy -D warnings → test → build）迭代中——本机无 Rust 工具链，Tauri 的首次真实编译即由 CI 完成，已修 14 处（缺分号、E0505 借用×2、await-in-sync、u64/usize、center()、CreateJobObjectW 不可用→改用已验证 taskkill /T /F、HelloInfo Serialize、dirs 链、Submenu &dyn 装箱、clippy manual_inspect/useless_conversion、unused mut/shared、dangling cfg）。详见 git log fix(tauri)。
+**GitHub + CI**：https://github.com/tesesonfire/dsh-desktop 。CI 三类 job：node（build/test/audit）✅、electron clean-boot smoke（windows）✅、rust 三 OS（clippy -D warnings → test → build）**全部 ✅**——Tauri 首次真实编译由 CI 完成，历经 19 处修复后三平台全绿（缺分号、E0505 借用×2、await-in-sync、u64/usize、center()、CreateJobObjectW 不可用→taskkill /T /F、HelloInfo Serialize、dirs 链、Submenu &dyn 装箱、clippy manual_inspect/useless_conversion、unused mut/shared、dangling cfg、终端探测闭包 'static、plugin_inventory 独立 Option 面、lifecycle 路径深度、Windows rename 竞争重试、launcher 测试 DSH_HOME 环境互斥、finder 容忍 node.exe）。mac/ubuntu 另跑 DSH_E2E lifecycle e2e；windows 该 e2e 因 runner 上 node+mock spawn 怪癖跳过（34/34 单测过）。详见 git log fix(tauri)。
 
 ## 3. 未完成 / TODO（全部有代码内标注）
 
